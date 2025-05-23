@@ -1,0 +1,161 @@
+@startuml "Local Hero Database Model"
+
+' Title and Project Information
+title Local Hero Database Model
+header NHL STENDEN UNIVERSITY OF APPLIED SCIENCES
+footer Version 1.1
+
+' Database styling
+!define TABLE(x) class x << (T,#FFAAAA) >>
+!define PK(x) <b><color:#b8861b><&key></color> x</b>
+!define FK(x) <color:#aaaaaa><&key></color> x
+!define NOT_NULL(x) <color:red>*</color> x
+
+' User tables
+TABLE(Users) {
+  PK(user_id) : INT
+  NOT_NULL(username) : VARCHAR(50)
+  NOT_NULL(email) : VARCHAR(100)
+  NOT_NULL(password_hash) : VARCHAR(255)
+  NOT_NULL(user_type) : ENUM('task_poster', 'task_doer', 'both')
+  NOT_NULL(created_at) : TIMESTAMP
+  profile_picture : VARCHAR(255)
+  bio : TEXT
+  phone_number : VARCHAR(20)
+  is_verified : BOOLEAN
+}
+
+TABLE(UserProfiles) {
+  PK(profile_id) : INT
+  FK(user_id) : INT
+  NOT_NULL(first_name) : VARCHAR(50)
+  NOT_NULL(last_name) : VARCHAR(50)
+  address : VARCHAR(255)
+  city : VARCHAR(100)
+  state : VARCHAR(100)
+  postal_code : VARCHAR(20)
+  country : VARCHAR(100)
+  latitude : DECIMAL(10,8)
+  longitude : DECIMAL(11,8)
+  NOT_NULL(last_updated) : TIMESTAMP
+}
+
+' Task related tables
+TABLE(Tasks) {
+  PK(task_id) : INT
+  FK(poster_id) : INT
+  NOT_NULL(title) : VARCHAR(100)
+  NOT_NULL(description) : TEXT
+  NOT_NULL(category) : VARCHAR(50)
+  NOT_NULL(status) : ENUM('open', 'assigned', 'in_progress', 'completed', 'cancelled')
+  NOT_NULL(created_at) : TIMESTAMP
+  NOT_NULL(deadline) : TIMESTAMP
+  budget_min : DECIMAL(10,2)
+  budget_max : DECIMAL(10,2)
+  location_address : VARCHAR(255)
+  location_city : VARCHAR(100)
+  location_postal_code : VARCHAR(20)
+  latitude : DECIMAL(10,8)
+  longitude : DECIMAL(11,8)
+  is_remote : BOOLEAN
+}
+
+TABLE(TaskApplications) {
+  PK(application_id) : INT
+  FK(task_id) : INT
+  FK(doer_id) : INT
+  NOT_NULL(status) : ENUM('pending', 'accepted', 'rejected', 'withdrawn')
+  NOT_NULL(created_at) : TIMESTAMP
+  proposed_price : DECIMAL(10,2)
+  cover_letter : TEXT
+  estimated_completion_time : VARCHAR(50)
+}
+
+TABLE(TaskCategories) {
+  PK(category_id) : INT
+  NOT_NULL(name) : VARCHAR(50)
+  description : TEXT
+  icon : VARCHAR(255)
+}
+
+' Messaging system
+TABLE(Messages) {
+  PK(message_id) : INT
+  FK(conversation_id) : INT
+  FK(sender_id) : INT
+  NOT_NULL(message_text) : TEXT
+  NOT_NULL(sent_at) : TIMESTAMP
+  read_at : TIMESTAMP
+  has_attachment : BOOLEAN
+}
+
+TABLE(Conversations) {
+  PK(conversation_id) : INT
+  FK(task_id) : INT
+  NOT_NULL(created_at) : TIMESTAMP
+  last_message_at : TIMESTAMP
+}
+
+TABLE(ConversationParticipants) {
+  PK(participant_id) : INT
+  FK(conversation_id) : INT
+  FK(user_id) : INT
+  NOT_NULL(joined_at) : TIMESTAMP
+  last_read_at : TIMESTAMP
+}
+
+' Reviews and ratings
+TABLE(Reviews) {
+  PK(review_id) : INT
+  FK(task_id) : INT
+  FK(reviewer_id) : INT
+  FK(reviewee_id) : INT
+  NOT_NULL(rating) : TINYINT
+  review_text : TEXT
+  NOT_NULL(created_at) : TIMESTAMP
+}
+
+' Notifications
+TABLE(Notifications) {
+  PK(notification_id) : INT
+  FK(user_id) : INT
+  NOT_NULL(type) : VARCHAR(50)
+  NOT_NULL(message) : TEXT
+  NOT_NULL(created_at) : TIMESTAMP
+  read_at : TIMESTAMP
+  related_id : INT
+  related_type : VARCHAR(50)
+}
+
+' Payment information
+TABLE(Payments) {
+  PK(payment_id) : INT
+  FK(task_id) : INT
+  FK(payer_id) : INT
+  FK(payee_id) : INT
+  NOT_NULL(amount) : DECIMAL(10,2)
+  NOT_NULL(status) : ENUM('pending', 'completed', 'refunded', 'failed')
+  NOT_NULL(created_at) : TIMESTAMP
+  payment_method : VARCHAR(50)
+  transaction_id : VARCHAR(100)
+}
+
+' Relationships
+Users "1" -- "1" UserProfiles : has
+Users "1" -- "*" Tasks : posts
+Users "1" -- "*" TaskApplications : applies to
+Tasks "*" -- "1" TaskCategories : belongs to
+Tasks "1" -- "*" TaskApplications : receives
+Tasks "1" -- "1" Conversations : has
+Conversations "1" -- "*" Messages : contains
+Conversations "1" -- "*" ConversationParticipants : includes
+Users "1" -- "*" ConversationParticipants : participates in
+Tasks "1" -- "*" Reviews : receives
+Users "1" -- "*" Reviews : gives
+Users "1" -- "*" Reviews : receives
+Users "1" -- "*" Notifications : receives
+Tasks "1" -- "*" Payments : generates
+Users "1" -- "*" Payments : makes
+Users "1" -- "*" Payments : receives
+
+@enduml
