@@ -8,6 +8,7 @@ import fastifySecureSession from '@fastify/secure-session';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { join } from 'path';
 
 async function bootstrap() {
   const fastifyAdapter = new FastifyAdapter();
@@ -59,6 +60,12 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Serve static files from the public directory
+  app.useStaticAssets({
+    root: join(__dirname, '..', 'public'),
+    prefix: '/',
+  });
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
   console.log(`Application is running on: ${await app.getUrl()}`);
