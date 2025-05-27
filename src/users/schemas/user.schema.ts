@@ -24,9 +24,13 @@ export class User {
 
   @Prop({ default: Role.USER, enum: Role, type: String })
   role: Role;
+  @Prop({ type: Date, default: null })
+  emailVerifiedAt: Date | null;
 
-  @Prop()
-  emailVerifiedAt: Date;
+  // Add timestamps explicitly
+  createdAt: Date;
+
+  updatedAt: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

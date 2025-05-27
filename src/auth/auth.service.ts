@@ -10,7 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { RefreshTokensService } from '../refresh-tokens/refresh-tokens.service';
 import { v4 as uuidv4 } from 'uuid';
-import { UserEntity } from '../users/entities/user.entity';
+import { User } from '../users/schemas/user.schema';
 import {
   JwtAccessPayload,
   JwtRefreshPayload,
@@ -67,7 +67,7 @@ export class AuthService {
   async validateUser(
     email: string,
     pass: string,
-  ): Promise<Omit<UserEntity, 'password'>> {
+  ): Promise<Omit<User, 'password'>> {
     try {
       const user = await this.usersService.findOneByEmail(email, [
         'id',
@@ -91,7 +91,7 @@ export class AuthService {
     }
   }
 
-  async login(user: Omit<UserEntity, 'password'>) {
+  async login(user: Omit<User, 'password'>) {
     try {
       const jti = uuidv4();
       const payload = {

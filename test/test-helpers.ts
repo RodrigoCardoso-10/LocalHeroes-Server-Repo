@@ -35,10 +35,7 @@ export function getTestDbConfig() {
         isGlobal: true,
         load: [dbConfig],
       }),
-      MongooseModule.forRoot(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      }),
+      MongooseModule.forRoot(uri),
       MongooseModule.forFeature([
         { name: User.name, schema: UserSchema },
         { name: RefreshToken.name, schema: RefreshTokenSchema },
