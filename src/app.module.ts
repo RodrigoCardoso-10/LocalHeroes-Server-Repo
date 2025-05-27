@@ -10,6 +10,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import dbConfiguration from './config/db.config';
 import mailerConfig from './config/mailer.config';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import mailerConfig from './config/mailer.config';
     MailModule,
     RefreshTokensModule,
     MessagesModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
