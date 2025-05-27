@@ -22,8 +22,9 @@ import { TasksModule } from './tasks/tasks.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get('database.uri'),
-        useNewUrlParser: configService.get('database.useNewUrlParser'),
-        useUnifiedTopology: configService.get('database.useUnifiedTopology'),
+        // Remove deprecated options
+        // useNewUrlParser: configService.get('database.useNewUrlParser'),
+        // useUnifiedTopology: configService.get('database.useUnifiedTopology'),
       }),
     }),
     AuthModule,
