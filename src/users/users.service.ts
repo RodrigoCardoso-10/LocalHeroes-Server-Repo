@@ -19,7 +19,7 @@ export class UsersService {
     private userModel: Model<UserDocument>,
   ) {}
 
-  async create(userData: CreateUserDto): Promise<User> {
+  async create(userData: CreateUserDto): Promise<UserDocument> {
     const existingUser = await this.userModel
       .findOne({
         email: userData.email,
@@ -34,22 +34,22 @@ export class UsersService {
     userData.password = await bcrypt.hash(userData.password, salt);
     const newUser = new this.userModel(userData);
     const savedUser = await newUser.save();
-    return savedUser as User;
+    return savedUser;
   }
 
-  async findOneById(id: string): Promise<User> {
+  async findOneById(id: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ id }).exec();
     if (!user) {
       const errorMessage = `User with ID ${id} not found.`;
       throw new NotFoundException(errorMessage);
     }
-    return user as User;
+    return user;
   }
 
   async findOneByEmail(
     email: string,
     select?: string | string[],
-  ): Promise<User> {
+  ): Promise<UserDocument> {
     let query = this.userModel.findOne({ email });
 
     if (select) {
@@ -63,10 +63,13 @@ export class UsersService {
       const errorMessage = `User with email ${email} not found.`;
       throw new NotFoundException(errorMessage);
     }
-    return user as User; // Use type assertion to ensure the return type is User
+    return user; // Use type assertion to ensure the return type is User
   }
 
-  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async updateUser(
+    id: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<UserDocument> {
     const user = await this.userModel.findOne({ id }).exec();
 
     if (!user) {
@@ -89,7 +92,7 @@ export class UsersService {
     return updatedUser;
   }
 
-  async save(user: User): Promise<User> {
+  async save(user: UserDocument): Promise<UserDocument> {
     const savedUser = await this.userModel
       .findOneAndUpdate({ id: user.id }, user, { new: true, upsert: true })
       .exec();
@@ -98,6 +101,6 @@ export class UsersService {
       throw new NotFoundException(`Failed to save user with ID ${user.id}`);
     }
 
-    return savedUser as User; // Use type assertion to ensure the return type is User
+    return savedUser; // Use type assertion to ensure the return type is User
   }
 }

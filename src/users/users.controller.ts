@@ -29,7 +29,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Get('userdata')
   async findOne(@Req() req: AuthFastifyRequest): Promise<User> {
-    return await this.usersService.findOneById(req.user.sub);
+    return await this.usersService.findOneById(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)
