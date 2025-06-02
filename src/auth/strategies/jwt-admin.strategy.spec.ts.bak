@@ -1,0 +1,115 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { JwtAdminStrategy } from './jwt-admin.strategy';
+import { UsersService } from '../../users/users.service';
+import { ConfigService } from '@nestjs/config';
+import { JwtAccessPayload } from '../interfaces/jwt-payload.interface';
+import { Role } from '../../users/interfaces/role.enum';
+
+describe('JwtAdminStrategy', () => {
+  let strategy: JwtAdminStrategy;
+  let usersService: UsersService;
+  let configService: ConfigService;
+
+  const mockUsersService = {
+    findOneByEmail: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
+  const mockAdminUser = {
+    id: 'admin-id',
+    email: 'admin@example.com',
+    username: 'adminuser',
+    role: Role.ADMIN,
+  };
+
+  const mockRegularUser = {
+    id: 'user-id',
+    email: 'user@example.com',
+    username: 'regularuser',
+    role: Role.USER,
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        JwtAdminStrategy,
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    strategy = module.get<JwtAdminStrategy>(JwtAdminStrategy);
+    usersService = module.get<UsersService>(UsersService);
+    configService = module.get<ConfigService>(ConfigService);
+
+    // Mock environment variables
+    mockConfigService.get.mockImplementation((key: string) => {
+      if (key === 'JWT_SECRET') return 'test-jwt-secret';
+      return null;
+    });
+  });
+
+  describe('constructor', () => {
+    it('should throw an error if JWT_SECRET is not set', () => {
+      mockConfigService.get.mockReturnValue(null);
+
+      expect(() => {
+        new JwtAdminStrategy(usersService, configService);
+      }).toThrow('JWT_SECRET is not defined');
+    });
+  });
+
+  describe('validate', () => {
+    it('should return the payload if user is an admin', async () => {
+      const payload: JwtAccessPayload = {
+        sub: 'admin-id',
+        email: 'admin@example.com',
+        role: Role.ADMIN,
+      };
+
+      mockUsersService.findOneByEmail.mockResolvedValue(mockAdminUser);
+
+      const result = await strategy.validate(payload);
+
+      expect(result).toEqual(payload);
+      expect(usersService.findOneByEmail).toHaveBeenCalledWith(payload.email);
+    });
+
+    it('should throw an error if user is not an admin', async () => {
+      const payload: JwtAccessPayload = {
+        sub: 'user-id',
+        email: 'user@example.com',
+        role: Role.USER,
+      };
+
+      mockUsersService.findOneByEmail.mockResolvedValue(mockRegularUser);
+
+      await expect(strategy.validate(payload)).rejects.toThrow('Unauthorized: User is not an admin');
+      expect(usersService.findOneByEmail).toHaveBeenCalledWith(payload.email);
+    });
+
+    it('should throw an error if user not found', async () => {
+      const payload: JwtAccessPayload = {
+        sub: 'non-existent-user-id',
+        email: 'nonexistent@example.com',
+        role: Role.ADMIN,
+      };
+
+      mockUsersService.findOneByEmail.mockResolvedValue(null);
+
+      await expect(strategy.validate(payload)).rejects.toThrow('Unauthorized: User is not an admin');
+      expect(usersService.findOneByEmail).toHaveBeenCalledWith(payload.email);
+    });
+  });
+});

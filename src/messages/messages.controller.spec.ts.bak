@@ -1,0 +1,120 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { MessagesController } from './messages.controller';
+import { MessagesService } from './messages.service';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { GetMessagesDto } from './dto/get-messages.dto';
+import { Message } from './schemas/message.schema';
+
+describe('MessagesController', () => {
+  let controller: MessagesController;
+  let service: MessagesService;
+
+  const mockMessagesService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    markAsRead: jest.fn(),
+    getUnreadCount: jest.fn(),
+  };
+
+  const mockMessage: Partial<Message> = {
+    id: 'test-message-id',
+    senderId: 'sender-id',
+    receiverId: 'receiver-id',
+    content: 'Hello, this is a test message',
+    read: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [MessagesController],
+      providers: [
+        {
+          provide: MessagesService,
+          useValue: mockMessagesService,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<MessagesController>(MessagesController);
+    service = module.get<MessagesService>(MessagesService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create a new message', async () => {
+      const createMessageDto: CreateMessageDto = {
+        receiverId: 'receiver-id',
+        content: 'Hello, this is a test message',
+      };
+      
+      const req = { user: { id: 'sender-id' } };
+      
+      mockMessagesService.create.mockResolvedValue(mockMessage);
+      
+      const result = await controller.create(createMessageDto, req);
+      
+      expect(result).toEqual(mockMessage);
+      expect(mockMessagesService.create).toHaveBeenCalledWith(
+        'sender-id',
+        createMessageDto,
+      );
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return all messages for a user', async () => {
+      const getMessagesDto: GetMessagesDto = {
+        userId: 'user-id',
+        otherUserId: 'other-user-id',
+      };
+      
+      const mockMessages = [mockMessage];
+      mockMessagesService.findAll.mockResolvedValue(mockMessages);
+      
+      const result = await controller.findAll(getMessagesDto);
+      
+      expect(result).toEqual(mockMessages);
+      expect(mockMessagesService.findAll).toHaveBeenCalledWith(getMessagesDto);
+    });
+  });
+
+  describe('markAsRead', () => {
+    it('should mark a message as read', async () => {
+      const messageId = 'message-id';
+      const req = { user: { id: 'user-id' } };
+      
+      mockMessagesService.markAsRead.mockResolvedValue(mockMessage);
+      
+      const result = await controller.markAsRead(messageId, req);
+      
+      expect(result).toEqual(mockMessage);
+      expect(mockMessagesService.markAsRead).toHaveBeenCalledWith(
+        'user-id',
+        messageId,
+      );
+    });
+  });
+
+  describe('getUnreadCount', () => {
+    it('should return the count of unread messages', async () => {
+      const req = { user: { id: 'user-id' } };
+      const unreadCount = 5;
+      
+      mockMessagesService.getUnreadCount.mockResolvedValue(unreadCount);
+      
+      const result = await controller.getUnreadCount(req);
+      
+      expect(result).toEqual({ count: unreadCount });
+      expect(mockMessagesService.getUnreadCount).toHaveBeenCalledWith('user-id');
+    });
+  });
+});

@@ -29,17 +29,21 @@ describe('UsersService', () => {
 
   beforeEach(async () => {
     // Create mock for Mongoose Model
-    const mockUserModel = {
-      new: jest.fn().mockResolvedValue(mockUser),
-      constructor: jest.fn().mockResolvedValue(mockUser),
-      find: jest.fn(),
-      findOne: jest.fn(),
-      findOneAndUpdate: jest.fn(),
-      update: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      exec: jest.fn(),
+    const mockUserModel = function() {
+      return {
+        ...mockUser,
+        save: jest.fn().mockResolvedValue(mockUser)
+      };
     };
+    
+    // Add methods to the mockUserModel function
+    mockUserModel.find = jest.fn();
+    mockUserModel.findOne = jest.fn();
+    mockUserModel.findOneAndUpdate = jest.fn();
+    mockUserModel.update = jest.fn();
+    mockUserModel.create = jest.fn();
+    mockUserModel.save = jest.fn();
+    mockUserModel.exec = jest.fn();
 
     // Setup for chained queries
     mockUserModel.findOne = jest.fn().mockReturnValue({
@@ -178,7 +182,7 @@ describe('UsersService', () => {
     });
 
     it('should remove password field from update DTO', async () => {
-      const updateUserDto: UpdateUserDto = {
+      const updateUserDto = {
         firstName: 'Updated',
         lastName: 'Name',
         password: 'newpassword123',
@@ -196,7 +200,9 @@ describe('UsersService', () => {
 
   describe('save', () => {
     it('should save user successfully', async () => {
-      const result = await service.save(mockUser);
+      // Cast mockUser to UserDocument for type compatibility
+      const mockUserDoc = mockUser as unknown as UserDocument;
+      const result = await service.save(mockUserDoc);
 
       expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
         { id: mockUser.id },
