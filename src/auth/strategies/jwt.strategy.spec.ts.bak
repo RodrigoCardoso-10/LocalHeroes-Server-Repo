@@ -1,0 +1,96 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { JwtStrategy } from './jwt.strategy';
+import { UsersService } from '../../users/users.service';
+import { ConfigService } from '@nestjs/config';
+import { UnauthorizedException } from '@nestjs/common';
+import { JwtAccessPayload } from '../interfaces/jwt-payload.interface';
+import { Role } from '../../users/interfaces/role.enum';
+
+describe('JwtStrategy', () => {
+  let strategy: JwtStrategy;
+  let usersService: UsersService;
+  let configService: ConfigService;
+
+  const mockUsersService = {
+    findOneById: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
+  const mockUser = {
+    id: 'user-id',
+    email: 'test@example.com',
+    username: 'testuser',
+    role: Role.USER,
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        JwtStrategy,
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    strategy = module.get<JwtStrategy>(JwtStrategy);
+    usersService = module.get<UsersService>(UsersService);
+    configService = module.get<ConfigService>(ConfigService);
+
+    // Mock environment variables
+    mockConfigService.get.mockImplementation((key: string) => {
+      if (key === 'JWT_SECRET') return 'test-jwt-secret';
+      return null;
+    });
+  });
+
+  describe('constructor', () => {
+    it('should throw an error if JWT_SECRET is not set', () => {
+      mockConfigService.get.mockReturnValue(null);
+
+      expect(() => {
+        new JwtStrategy(usersService, configService);
+      }).toThrow('JWT_SECRET environment variable is not set');
+    });
+  });
+
+  describe('validate', () => {
+    it('should return the user if token is valid', async () => {
+      const payload: JwtAccessPayload = {
+        sub: 'user-id',
+        email: 'test@example.com',
+        role: Role.USER,
+      };
+
+      mockUsersService.findOneById.mockResolvedValue(mockUser);
+
+      const result = await strategy.validate(payload);
+
+      expect(result).toEqual(mockUser);
+      expect(usersService.findOneById).toHaveBeenCalledWith(payload.sub);
+    });
+
+    it('should throw UnauthorizedException if user not found', async () => {
+      const payload: JwtAccessPayload = {
+        sub: 'non-existent-user-id',
+        email: 'test@example.com',
+        role: Role.USER,
+      };
+
+      mockUsersService.findOneById.mockResolvedValue(null);
+
+      await expect(strategy.validate(payload)).rejects.toThrow(UnauthorizedException);
+      expect(usersService.findOneById).toHaveBeenCalledWith(payload.sub);
+    });
+  });
+});
