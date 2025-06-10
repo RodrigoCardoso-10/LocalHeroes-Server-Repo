@@ -31,7 +31,8 @@ async function bootstrap() {
     cookie: {
       path: '/',
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production', // Only use secure in production
+      sameSite: 'none', // Allow cross-site cookies for mobile app
     },
   });
 
@@ -51,6 +52,14 @@ async function bootstrap() {
     }
 
     next();
+  });
+
+  // Enable CORS for React Native app
+  app.enableCors({
+    origin: true, // Allow all origins in development
+    credentials: true, // Important for cookies
+    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.useGlobalPipes(

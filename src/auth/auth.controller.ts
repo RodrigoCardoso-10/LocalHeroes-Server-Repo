@@ -38,15 +38,18 @@ export class AuthController {
       req.user,
     );
 
+    // Configure cookies to work with React Native app
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.setCookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
+      secure: isProduction, // Only use secure in production
+      sameSite: 'none', // Allow cross-site cookies for mobile app
     });
     res.setCookie('accessToken', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
+      secure: isProduction, // Only use secure in production
+      sameSite: 'none', // Allow cross-site cookies for mobile app
     });
 
     return res.send({ accessToken });
@@ -82,10 +85,13 @@ export class AuthController {
 
     const { accessToken } = await this.authService.refreshToken(refreshToken);
 
+    // Configure cookies to work with React Native app
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.setCookie('accessToken', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
+      secure: isProduction, // Only use secure in production
+      sameSite: 'none', // Allow cross-site cookies for mobile app
     });
 
     return { accessToken };
