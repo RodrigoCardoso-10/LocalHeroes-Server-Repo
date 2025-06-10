@@ -21,11 +21,20 @@ export class User {
 
   @Prop({ required: true })
   password: string;
-
   @Prop({ default: Role.USER, enum: Role, type: String })
   role: Role;
+
   @Prop({ type: Date, default: null })
   emailVerifiedAt: Date | null;
+
+  @Prop({ required: false })
+  phone?: string;
+
+  @Prop({ required: false })
+  address?: string;
+
+  @Prop({ required: false })
+  bio?: string;
 
   // Add timestamps explicitly
   createdAt: Date;

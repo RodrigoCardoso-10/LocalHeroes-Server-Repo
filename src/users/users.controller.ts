@@ -33,11 +33,11 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch(':id')
-  async updateUser(
-    @Param('id', UuidValidationPipe) id: string,
+  @Patch('profile')
+  async updateProfile(
+    @Req() req: AuthFastifyRequest,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<User> {
-    return await this.usersService.updateUser(id, updateUserDto);
+    return await this.usersService.updateUser(req.user.id, updateUserDto);
   }
 }

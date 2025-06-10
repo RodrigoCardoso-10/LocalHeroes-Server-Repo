@@ -37,7 +37,12 @@ describe('AuthController', () => {
       const mockUser = {
         id: 'user-id',
         email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
         role: Role.USER,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        emailVerifiedAt: null,
       };
 
       const mockReq = { user: mockUser };
@@ -45,10 +50,10 @@ describe('AuthController', () => {
         setCookie: jest.fn(),
         send: jest.fn().mockReturnThis(),
       };
-
       authService.login.mockResolvedValue({
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
+        user: mockUser,
       });
 
       await controller.login(mockReq as any, mockRes as any);
@@ -59,8 +64,8 @@ describe('AuthController', () => {
         'refresh-token',
         expect.objectContaining({
           httpOnly: true,
-          secure: true,
-          sameSite: 'strict',
+          secure: false, // false in development
+          sameSite: 'none', // 'none' for React Native
         }),
       );
       expect(mockRes.setCookie).toHaveBeenCalledWith(
@@ -68,12 +73,22 @@ describe('AuthController', () => {
         'access-token',
         expect.objectContaining({
           httpOnly: true,
-          secure: true,
-          sameSite: 'strict',
+          secure: false, // false in development
+          sameSite: 'none', // 'none' for React Native
         }),
       );
       expect(mockRes.send).toHaveBeenCalledWith({
         accessToken: 'access-token',
+        user: {
+          id: mockUser.id,
+          email: mockUser.email,
+          firstName: mockUser.firstName,
+          lastName: mockUser.lastName,
+          role: mockUser.role,
+          createdAt: mockUser.createdAt,
+          updatedAt: mockUser.updatedAt,
+          emailVerifiedAt: mockUser.emailVerifiedAt,
+        },
       });
     });
   });
@@ -125,8 +140,8 @@ describe('AuthController', () => {
         'new-access-token',
         expect.objectContaining({
           httpOnly: true,
-          secure: true,
-          sameSite: 'strict',
+          secure: false, // false in development
+          sameSite: 'none', // 'none' for React Native
         }),
       );
       expect(result).toEqual({ accessToken: 'new-access-token' });

@@ -86,15 +86,29 @@ export class AuthService {
       if (!isMatch) {
         throw new ForbiddenException('Invalid credentials');
       }
-      const { password, ...result } = user;
+
+      // Convert Mongoose document to plain object and extract needed fields
+      const userObj = user.toObject ? user.toObject() : user;
+      const { password, _id, __v, ...result } = userObj;
+
+      // Ensure we always use the UUID id field, not the MongoDB _id
+      if (!result.id) {
+        throw new ForbiddenException('User missing UUID identifier');
+      }
+
+      console.log('validateUser: result after destructuring:', result);
       return result;
     } catch (error) {
       throw error;
     }
   }
-
   async login(user: Omit<User, 'password'>) {
     try {
+      console.log(
+        'LOGIN: user.id being passed to refreshTokensService.create:',
+        user.id,
+      );
+      console.log('LOGIN: full user object:', user);
       const jti = uuidv4();
       const payload = {
         email: user.email,
@@ -108,11 +122,15 @@ export class AuthService {
         payload,
         jti,
       );
+      // Omit password from user object
+      const { password, ...userWithoutPassword } = user as any;
       return {
         accessToken,
         refreshToken,
+        user: userWithoutPassword,
       };
     } catch (error) {
+      console.error('LOGIN ERROR:', error);
       throw new InternalServerErrorException('Error during login process');
     }
   }

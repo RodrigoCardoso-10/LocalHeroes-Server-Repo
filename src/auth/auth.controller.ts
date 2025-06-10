@@ -34,13 +34,13 @@ export class AuthController {
     @Req() req: LoginFastifyRequest,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    const { accessToken, refreshToken } = await this.authService.login(
+    // Call AuthService.login and get tokens and user
+    const { accessToken, refreshToken, user } = await this.authService.login(
       req.user,
     );
 
     // Configure cookies to work with React Native app
     const isProduction = process.env.NODE_ENV === 'production';
-    
     res.setCookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction, // Only use secure in production
@@ -52,7 +52,20 @@ export class AuthController {
       sameSite: 'none', // Allow cross-site cookies for mobile app
     });
 
-    return res.send({ accessToken });
+    // Return both token and user info (with UUID)
+    return res.send({
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        emailVerifiedAt: user.emailVerifiedAt,
+      },
+    });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -87,7 +100,7 @@ export class AuthController {
 
     // Configure cookies to work with React Native app
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     res.setCookie('accessToken', accessToken, {
       httpOnly: true,
       secure: isProduction, // Only use secure in production

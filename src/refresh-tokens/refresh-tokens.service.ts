@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { Cron } from '@nestjs/schedule';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import {
   RefreshToken,
   RefreshTokenDocument,
@@ -49,13 +49,20 @@ export class RefreshTokensService {
           .findByIdAndDelete(tokenToDelete._id)
           .exec();
       }
-
       const hashedToken = await bcrypt.hash(token, 10);
 
+      console.log('REFRESH TOKEN CREATE: userId received:', userId);
+      console.log('REFRESH TOKEN CREATE: typeof userId:', typeof userId);
+
+      // Find user by UUID (id field) - this is what's passed from auth service
       const user = await this.userModel.findOne({ id: userId }).exec();
 
+      console.log('REFRESH TOKEN CREATE: user found:', user);
+
       if (!user) {
-        throw new InternalServerErrorException('User not found');
+        throw new InternalServerErrorException(
+          `User not found with id: ${userId}`,
+        );
       }
 
       const refreshToken = new this.refreshTokenModel({
@@ -69,6 +76,7 @@ export class RefreshTokensService {
 
       return token;
     } catch (error) {
+      console.error('REFRESH TOKEN CREATE ERROR:', error);
       throw new InternalServerErrorException('Error creating refresh token');
     }
   }
