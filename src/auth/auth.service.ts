@@ -75,15 +75,17 @@ export class AuthService {
         'role',
         'password',
       ]);
+      console.log('validateUser: user from DB:', user);
       if (!user) {
         throw new ForbiddenException('Invalid credentials');
       }
-
+      if (!user.password) {
+        console.error('validateUser: password field missing from user!');
+      }
       const isMatch = await bcrypt.compare(pass, user.password);
       if (!isMatch) {
         throw new ForbiddenException('Invalid credentials');
       }
-
       const { password, ...result } = user;
       return result;
     } catch (error) {
