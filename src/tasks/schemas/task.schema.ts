@@ -38,9 +38,14 @@ export class Task extends Document {
 
   @Prop()
   dueDate?: Date;
-
   @Prop({ trim: true })
   category?: string;
+
+  @Prop([String])
+  tags?: string[];
+
+  @Prop({ trim: true })
+  experienceLevel?: string;
 }
 
 export const TaskSchema = SchemaFactory.createForClass(Task);

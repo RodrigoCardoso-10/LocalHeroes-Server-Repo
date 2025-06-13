@@ -31,19 +31,37 @@ export class TasksController {
   ): Promise<Task> {
     return this.tasksService.create(createTaskDto, req.user);
   }
-
   @Get()
   findAll(
     @Query('postedBy') postedBy?: string,
     @Query('acceptedBy') acceptedBy?: string,
+    @Query('search') search?: string,
+    @Query('location') location?: string,
+    @Query('category') category?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('status') status?: string,
+    @Query('datePosted') datePosted?: string,
+    @Query('tags') tags?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    if (postedBy) {
-      return this.tasksService.findAllByPoster(postedBy);
-    }
-    if (acceptedBy) {
-      return this.tasksService.findAllByDoer(acceptedBy);
-    }
-    return this.tasksService.findAll();
+    const filters = {
+      postedBy,
+      acceptedBy,
+      search,
+      location,
+      category,
+      minPrice: minPrice ? parseFloat(minPrice) : undefined,
+      maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+      status,
+      datePosted,
+      tags: tags ? tags.split(',') : undefined,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+    };
+
+    return this.tasksService.findAllWithFilters(filters);
   }
 
   @Get(':id')

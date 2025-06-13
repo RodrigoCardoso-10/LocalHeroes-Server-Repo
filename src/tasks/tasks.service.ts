@@ -242,4 +242,145 @@ export class TasksService {
     }
     return (task as any).save();
   }
+
+  async findAllWithFilters(filters: {
+    postedBy?: string;
+    acceptedBy?: string;
+    search?: string;
+    location?: string;
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    status?: string;
+    datePosted?: string;
+    tags?: string[];
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    tasks: PopulatedTask[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const {
+      postedBy,
+      acceptedBy,
+      search,
+      location,
+      category,
+      minPrice,
+      maxPrice,
+      status,
+      datePosted,
+      tags,
+      page = 1,
+      limit = 10,
+    } = filters;
+
+    // Build the query object
+    const query: any = {};
+
+    // User-specific filters
+    if (postedBy) {
+      query.postedBy = postedBy;
+    }
+    if (acceptedBy) {
+      query.acceptedBy = acceptedBy;
+    }
+
+    // Text search in title and description
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Location filter
+    if (location) {
+      query.location = { $regex: location, $options: 'i' };
+    }
+
+    // Category filter
+    if (category) {
+      query.category = { $regex: category, $options: 'i' };
+    }
+
+    // Price range filter
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      query.price = {};
+      if (minPrice !== undefined) {
+        query.price.$gte = minPrice;
+      }
+      if (maxPrice !== undefined) {
+        query.price.$lte = maxPrice;
+      }
+    }
+
+    // Status filter
+    if (status && Object.values(TaskStatus).includes(status as TaskStatus)) {
+      query.status = status;
+    } // Date posted filter
+    if (datePosted) {
+      const now = new Date();
+      let dateFilter: Date | null;
+
+      switch (datePosted) {
+        case 'Last Hour':
+          dateFilter = new Date(now.getTime() - 60 * 60 * 1000);
+          break;
+        case 'Last 24 Hours':
+          dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'Last 7 Days':
+          dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'Last 30 Days':
+          dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          dateFilter = null;
+      }
+
+      if (dateFilter) {
+        query.createdAt = { $gte: dateFilter };
+      }
+    }
+
+    // Tags filter (if we add tags to the schema later)
+    if (tags && tags.length > 0) {
+      query.tags = { $in: tags };
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Execute query with pagination
+    const [tasks, total] = await Promise.all([
+      this.taskModel
+        .find(query)
+        .populate<{
+          postedBy: UserDocument;
+        }>('postedBy', 'id username email firstName lastName')
+        .populate<{
+          acceptedBy: UserDocument | null;
+        }>('acceptedBy', 'id username email firstName lastName')
+        .sort({ createdAt: -1 }) // Sort by newest first
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.taskModel.countDocuments(query).exec(),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      tasks: tasks as PopulatedTask[],
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
 }

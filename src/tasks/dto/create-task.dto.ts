@@ -7,6 +7,7 @@ import {
   IsDateString,
   MaxLength,
   IsEnum,
+  IsArray,
 } from 'class-validator';
 import { TaskStatus } from '../schemas/task.schema';
 
@@ -33,11 +34,20 @@ export class CreateTaskDto {
   @IsOptional()
   @IsDateString()
   dueDate?: Date;
-
   @IsOptional()
   @IsString()
   @MaxLength(50)
   category?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  experienceLevel?: string;
 
   // Status will be set to OPEN by default in the service/schema, not provided by user on creation
   // postedBy will be set from the authenticated user in the service
