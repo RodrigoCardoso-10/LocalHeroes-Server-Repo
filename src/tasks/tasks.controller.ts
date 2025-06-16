@@ -23,7 +23,6 @@ import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
-
   @Post()
   create(
     @Body() createTaskDto: CreateTaskDto,
@@ -31,6 +30,12 @@ export class TasksController {
   ): Promise<Task> {
     return this.tasksService.create(createTaskDto, req.user);
   }
+
+  @Get('filter-counts')
+  getFilterCounts() {
+    return this.tasksService.getFilterCounts();
+  }
+
   @Get()
   findAll(
     @Query('postedBy') postedBy?: string,
@@ -62,7 +67,6 @@ export class TasksController {
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
     };
-
     return this.tasksService.findAllWithFilters(filters);
   }
 

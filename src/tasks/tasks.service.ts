@@ -378,7 +378,6 @@ export class TasksService {
     ]);
 
     const totalPages = Math.ceil(total / limit);
-
     return {
       tasks: tasks as PopulatedTask[],
       total,
@@ -386,5 +385,90 @@ export class TasksService {
       limit,
       totalPages,
     };
+  }
+
+  async getFilterCounts(): Promise<{
+    categories: Record<string, number>;
+    experienceLevels: Record<string, number>;
+    datePosted: Record<string, number>;
+  }> {
+    try {
+      // Get category counts using aggregation
+      const categoryPipeline = [
+        { $match: { status: 'OPEN' } }, // Only count open tasks
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+      ];
+
+      // Get experience level counts using aggregation
+      const experiencePipeline = [
+        { $match: { status: 'OPEN' } }, // Only count open tasks
+        { $group: { _id: '$experienceLevel', count: { $sum: 1 } } },
+      ];
+
+      // Get date-based counts using aggregation
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const [
+        categoryResults,
+        experienceResults,
+        totalCount,
+        dailyCount,
+        weeklyCount,
+        monthlyCount,
+      ] = await Promise.all([
+        this.taskModel.aggregate(categoryPipeline).exec(),
+        this.taskModel.aggregate(experiencePipeline).exec(),
+        this.taskModel.countDocuments({ status: 'OPEN' }).exec(),
+        this.taskModel
+          .countDocuments({ status: 'OPEN', createdAt: { $gte: oneDayAgo } })
+          .exec(),
+        this.taskModel
+          .countDocuments({ status: 'OPEN', createdAt: { $gte: oneWeekAgo } })
+          .exec(),
+        this.taskModel
+          .countDocuments({ status: 'OPEN', createdAt: { $gte: oneMonthAgo } })
+          .exec(),
+      ]);
+
+      // Process category results
+      const categories: Record<string, number> = {};
+      categoryResults.forEach((result) => {
+        if (result._id) {
+          categories[result._id] = result.count;
+        }
+      });
+
+      // Process experience level results
+      const experienceLevels: Record<string, number> = {};
+      experienceResults.forEach((result) => {
+        if (result._id) {
+          experienceLevels[result._id] = result.count;
+        }
+      });
+
+      // Date posted counts
+      const datePosted: Record<string, number> = {
+        All: totalCount,
+        'Last 24 Hours': dailyCount,
+        'Last 7 Days': weeklyCount,
+        'Last 30 Days': monthlyCount,
+      };
+
+      return {
+        categories,
+        experienceLevels,
+        datePosted,
+      };
+    } catch (error) {
+      console.error('Error getting filter counts:', error);
+      return {
+        categories: {},
+        experienceLevels: {},
+        datePosted: {},
+      };
+    }
   }
 }
