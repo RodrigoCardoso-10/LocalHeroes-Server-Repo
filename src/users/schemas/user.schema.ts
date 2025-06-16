@@ -36,6 +36,12 @@ export class User {
   @Prop({ required: false })
   bio?: string;
 
+  @Prop({ type: [String], default: [] })
+  skills?: string[];
+
+  @Prop({ required: false })
+  profilePicture?: string;
+
   // Add timestamps explicitly
   createdAt: Date;
 

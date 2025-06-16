@@ -242,7 +242,6 @@ export class TasksService {
     }
     return (task as any).save();
   }
-
   async findAllWithFilters(filters: {
     postedBy?: string;
     acceptedBy?: string;
@@ -254,6 +253,7 @@ export class TasksService {
     status?: string;
     datePosted?: string;
     tags?: string[];
+    experienceLevel?: string;
     page?: number;
     limit?: number;
   }): Promise<{
@@ -274,6 +274,7 @@ export class TasksService {
       status,
       datePosted,
       tags,
+      experienceLevel,
       page = 1,
       limit = 10,
     } = filters;
@@ -346,11 +347,14 @@ export class TasksService {
       if (dateFilter) {
         query.createdAt = { $gte: dateFilter };
       }
-    }
-
-    // Tags filter (if we add tags to the schema later)
+    } // Tags filter (if we add tags to the schema later)
     if (tags && tags.length > 0) {
       query.tags = { $in: tags };
+    }
+
+    // Experience level filter
+    if (experienceLevel) {
+      query.experienceLevel = { $regex: experienceLevel, $options: 'i' };
     }
 
     // Calculate pagination

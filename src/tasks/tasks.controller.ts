@@ -43,6 +43,7 @@ export class TasksController {
     @Query('status') status?: string,
     @Query('datePosted') datePosted?: string,
     @Query('tags') tags?: string,
+    @Query('experienceLevel') experienceLevel?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -57,6 +58,7 @@ export class TasksController {
       status,
       datePosted,
       tags: tags ? tags.split(',') : undefined,
+      experienceLevel,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
     };

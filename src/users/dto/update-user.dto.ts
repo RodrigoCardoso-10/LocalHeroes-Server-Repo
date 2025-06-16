@@ -30,4 +30,13 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(1000)
   bio?: string;
+
+  @IsOptional()
+  @IsString({ each: true })
+  skills?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  profilePicture?: string;
 }
