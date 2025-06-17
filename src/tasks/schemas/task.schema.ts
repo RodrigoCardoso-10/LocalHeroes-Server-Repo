@@ -26,9 +26,11 @@ export class Task extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   postedBy: UserDocument | Types.ObjectId;
-
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   acceptedBy?: UserDocument | Types.ObjectId | null;
+
+  @Prop([{ type: MongooseSchema.Types.ObjectId, ref: 'User' }])
+  applications?: Types.ObjectId[];
 
   @Prop({ trim: true })
   location?: string; // Simple text location for now
