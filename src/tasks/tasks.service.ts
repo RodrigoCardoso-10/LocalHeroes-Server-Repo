@@ -10,6 +10,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UserDocument } from '../users/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
 
 // Updated type guard with proper typing
 function isPopulatedUser(
@@ -29,6 +30,7 @@ export class TasksService {
   constructor(
     @InjectModel(Task.name) private taskModel: Model<Task>,
     private notificationsService: NotificationsService,
+    private usersService: UsersService,
   ) {}
 
   async create(
@@ -314,12 +316,38 @@ export class TasksService {
     // Build the query object
     const query: any = {};
 
-    // User-specific filters
+    // User-specific filters - handle UUID to ObjectId conversion
     if (postedBy) {
-      query.postedBy = postedBy;
+      try {
+        // Try to find the user by UUID to get their MongoDB ObjectId
+        const user = await this.usersService.findOneById(postedBy);
+        query.postedBy = user._id; // Use the MongoDB ObjectId for the query
+      } catch (error) {
+        // If user not found, return empty results instead of throwing error
+        return {
+          tasks: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        };
+      }
     }
     if (acceptedBy) {
-      query.acceptedBy = acceptedBy;
+      try {
+        // Try to find the user by UUID to get their MongoDB ObjectId
+        const user = await this.usersService.findOneById(acceptedBy);
+        query.acceptedBy = user._id; // Use the MongoDB ObjectId for the query
+      } catch (error) {
+        // If user not found, return empty results instead of throwing error
+        return {
+          tasks: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        };
+      }
     }
 
     // Text search in title and description
