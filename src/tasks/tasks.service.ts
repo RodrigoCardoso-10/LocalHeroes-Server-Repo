@@ -9,6 +9,7 @@ import { Task, TaskStatus, PopulatedTask } from './schemas/task.schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UserDocument } from '../users/schemas/user.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Updated type guard with proper typing
 function isPopulatedUser(
@@ -25,7 +26,10 @@ function isPopulatedUser(
 
 @Injectable()
 export class TasksService {
-  constructor(@InjectModel(Task.name) private taskModel: Model<Task>) {}
+  constructor(
+    @InjectModel(Task.name) private taskModel: Model<Task>,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(
     createTaskDto: CreateTaskDto,
@@ -44,10 +48,10 @@ export class TasksService {
       .find()
       .populate<{
         postedBy: UserDocument;
-      }>('postedBy', 'id username email firstName lastName')
+      }>('postedBy', 'id email firstName lastName')
       .populate<{
         acceptedBy: UserDocument | null;
-      }>('acceptedBy', 'id username email firstName lastName')
+      }>('acceptedBy', 'id email firstName lastName')
       .exec();
     return tasks as PopulatedTask[];
   }
@@ -60,10 +64,10 @@ export class TasksService {
       .findById(id)
       .populate<{
         postedBy: UserDocument;
-      }>('postedBy', 'id username email firstName lastName')
+      }>('postedBy', 'id email firstName lastName')
       .populate<{
         acceptedBy: UserDocument | null;
-      }>('acceptedBy', 'id username email firstName lastName')
+      }>('acceptedBy', 'id email firstName lastName')
       .exec();
     if (!task) {
       throw new NotFoundException(`Task with ID "${id}" not found`);
@@ -132,11 +136,11 @@ export class TasksService {
       .find({ postedBy: posterId as any })
       .populate<{ postedBy: UserDocument }>(
         'postedBy',
-        'id username email firstName lastName',
+        'id email firstName lastName',
       )
       .populate<{ acceptedBy: UserDocument | null }>(
         'acceptedBy',
-        'id username email firstName lastName',
+        'id email firstName lastName',
       )
       .exec();
     return tasks as PopulatedTask[];
@@ -150,11 +154,11 @@ export class TasksService {
       .find({ acceptedBy: doerId as any })
       .populate<{ postedBy: UserDocument }>(
         'postedBy',
-        'id username email firstName lastName',
+        'id email firstName lastName',
       )
       .populate<{ acceptedBy: UserDocument | null }>(
         'acceptedBy',
-        'id username email firstName lastName',
+        'id email firstName lastName',
       )
       .exec();
     return tasks as PopulatedTask[];
@@ -173,9 +177,37 @@ export class TasksService {
     if (task.postedBy.id === doerId) {
       throw new ForbiddenException('You cannot accept your own task.');
     }
-    task.acceptedBy = new Types.ObjectId(doerId) as any;
+
+    // Get the doer's information to create notification
+    const doerObjectId = new Types.ObjectId(doerId);
+    const doerUser = await this.taskModel.populate(
+      { acceptedBy: doerObjectId },
+      { path: 'acceptedBy', select: 'firstName lastName email' },
+    );
+
+    task.acceptedBy = doerObjectId as any;
     task.status = TaskStatus.IN_PROGRESS;
-    return (task as any).save();
+    const savedTask = await (task as any).save();
+
+    // Create notification for the job poster that someone applied
+    try {
+      const doerName = doerUser?.acceptedBy
+        ? `${(doerUser.acceptedBy as any).firstName || ''} ${(doerUser.acceptedBy as any).lastName || ''}`.trim() ||
+          (doerUser.acceptedBy as any).email
+        : 'Someone';
+
+      await this.notificationsService.createJobApplicationNotification(
+        task.postedBy._id.toString(),
+        doerId,
+        taskId,
+        task.title,
+        doerName,
+      );
+    } catch (error) {
+      console.error('Failed to create job application notification:', error);
+    }
+
+    return savedTask;
   }
 
   async completeTask(taskId: string, userId: string): Promise<Task> {
@@ -366,10 +398,10 @@ export class TasksService {
         .find(query)
         .populate<{
           postedBy: UserDocument;
-        }>('postedBy', 'id username email firstName lastName')
+        }>('postedBy', 'id email firstName lastName')
         .populate<{
           acceptedBy: UserDocument | null;
-        }>('acceptedBy', 'id username email firstName lastName')
+        }>('acceptedBy', 'id email firstName lastName')
         .sort({ createdAt: -1 }) // Sort by newest first
         .skip(skip)
         .limit(limit)
@@ -470,5 +502,130 @@ export class TasksService {
         datePosted: {},
       };
     }
+  }
+
+  async applyForTask(taskId: string, applicantId: string): Promise<Task> {
+    const task = await this.findOne(taskId);
+
+    if (task.status !== TaskStatus.OPEN) {
+      throw new ForbiddenException('Task is not open for applications.');
+    }
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
+    }
+
+    // Check if user is trying to apply for their own task
+    if (task.postedBy.id === applicantId) {
+      throw new ForbiddenException('You cannot apply for your own task.');
+    }
+
+    // Check if user has already applied
+    const applicantObjectId = new Types.ObjectId(applicantId);
+    if (task.applications?.some((id) => id.toString() === applicantId)) {
+      throw new ForbiddenException('You have already applied for this task.');
+    }
+
+    // Add application
+    if (!task.applications) {
+      task.applications = [];
+    }
+    task.applications.push(applicantObjectId);
+    const savedTask = await (task as any).save();
+
+    // Get applicant's information for notification
+    try {
+      const applicantPopulated = await this.taskModel.populate(
+        { applications: [applicantObjectId] },
+        { path: 'applications', select: 'firstName lastName email' },
+      );
+
+      const applicant = applicantPopulated?.applications?.[0] as any;
+      const applicantName = applicant
+        ? `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() ||
+          applicant.email
+        : 'Someone';
+
+      // Create notification for the job poster that someone applied
+      await this.notificationsService.createJobApplicationNotification(
+        task.postedBy._id.toString(),
+        applicantId,
+        taskId,
+        task.title,
+        applicantName,
+      );
+    } catch (error) {
+      console.error('Failed to create job application notification:', error);
+    }
+
+    return savedTask;
+  }
+
+  async acceptApplicant(
+    taskId: string,
+    applicantId: string,
+    posterId: string,
+  ): Promise<Task> {
+    const task = await this.findOne(taskId);
+
+    if (task.status !== TaskStatus.OPEN) {
+      throw new ForbiddenException('Task is not open for acceptance.');
+    }
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
+    }
+
+    // Check if the user is the task poster
+    if (task.postedBy.id !== posterId) {
+      throw new ForbiddenException(
+        'Only the task poster can accept applicants.',
+      );
+    }
+
+    // Check if applicant has applied
+    if (!task.applications?.some((id) => id.toString() === applicantId)) {
+      throw new ForbiddenException('This user has not applied for this task.');
+    }
+
+    // Accept the applicant
+    task.acceptedBy = new Types.ObjectId(applicantId) as any;
+    task.status = TaskStatus.IN_PROGRESS;
+    const savedTask = await (task as any).save();
+
+    // Create notification for accepted applicant
+    try {
+      const posterName =
+        `${task.postedBy.firstName || ''} ${task.postedBy.lastName || ''}`.trim() ||
+        task.postedBy.email;
+
+      await this.notificationsService.createApplicationStatusNotification(
+        applicantId,
+        posterId,
+        taskId,
+        task.title,
+        true, // accepted
+        posterName,
+      );
+
+      // Create notifications for rejected applicants
+      const rejectedApplicants =
+        task.applications?.filter((id) => id.toString() !== applicantId) || [];
+      for (const rejectedId of rejectedApplicants) {
+        await this.notificationsService.createApplicationStatusNotification(
+          rejectedId.toString(),
+          posterId,
+          taskId,
+          task.title,
+          false, // rejected
+          posterName,
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Failed to create application status notifications:',
+        error,
+      );
+    }
+
+    return savedTask;
   }
 }

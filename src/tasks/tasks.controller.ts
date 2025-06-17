@@ -92,6 +92,22 @@ export class TasksController {
     // Use req.user.id (string uuid) instead of _id (ObjectId)
     return this.tasksService.remove(id, req.user.id);
   }
+  @Patch(':id/apply')
+  applyForTask(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.applyForTask(id, req.user.id);
+  }
+
+  @Patch(':id/accept-applicant')
+  acceptApplicant(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body('applicantId') applicantId: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.acceptApplicant(id, applicantId, req.user.id);
+  }
 
   @Patch(':id/accept')
   acceptTask(
