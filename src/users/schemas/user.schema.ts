@@ -42,6 +42,9 @@ export class User {
   @Prop({ required: false })
   profilePicture?: string;
 
+  @Prop({ type: Number, default: 0 })
+  balance: number;
+
   // Add timestamps explicitly
   createdAt: Date;
 
