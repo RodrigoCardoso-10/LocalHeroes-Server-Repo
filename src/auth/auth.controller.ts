@@ -11,6 +11,7 @@ import {
   Req,
   Res,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -24,6 +25,7 @@ import {
   LoginFastifyRequest,
 } from './interfaces/auth-fastify-request.interface';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import * as bcrypt from 'bcrypt';
 
 @Controller('auth')
 export class AuthController {
@@ -179,6 +181,14 @@ export class AuthController {
     @Req() req: AuthFastifyRequest,
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
+    const isMatch = await bcrypt.compare(
+      changePasswordDto.oldPassword,
+      req.user.password
+    );
+    if (!isMatch) {
+      throw new UnauthorizedException('Old password is incorrect.');
+    }
+
     return await this.authService.changePassword(
       req.user.id,
       changePasswordDto.oldPassword,
