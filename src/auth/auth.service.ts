@@ -244,4 +244,18 @@ export class AuthService {
       );
     }
   }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.usersService.findOneById(userId);
+    if (!user.password) {
+      throw new UnauthorizedException('No password set for user.');
+    }
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('Old password is incorrect.');
+    }
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.usersService.save(user);
+    return { message: 'Password changed successfully.' };
+  }
 }
