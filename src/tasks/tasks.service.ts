@@ -600,61 +600,74 @@ export class TasksService {
   }
 
   async applyForTask(taskId: string, applicantId: string): Promise<Task> {
-    const taskToApply = await this.taskModel.findById(taskId).exec();
-
-    if (!taskToApply) {
-      throw new NotFoundException(`Task with ID "${taskId}" not found`);
+    const applicantUser = await this.usersService.findOneById(applicantId);
+    if (!applicantUser) {
+      throw new NotFoundException(
+        `Applicant with ID "${applicantId}" not found.`,
+      );
     }
+    const applicantObjectId = applicantUser._id as Types.ObjectId;
 
-    if (taskToApply.status !== TaskStatus.OPEN) {
-      throw new ForbiddenException('Task is not open for applications.');
-    }
-
-    if (taskToApply.postedBy.toString() === applicantId) {
-      throw new ForbiddenException('You cannot apply for your own task.');
-    }
-
-    if (taskToApply.acceptedBy) {
-      throw new ForbiddenException('Task has already been accepted.');
-    }
-
-    const applicantObjectId = new Types.ObjectId(applicantId);
-    if (taskToApply.applicants.some((id) => id.equals(applicantObjectId))) {
-      throw new ForbiddenException('You have already applied for this task.');
-    }
-
-    // Atomically increment views and add applicant
     const updatedTask = await this.taskModel
-      .findByIdAndUpdate(
-        taskId,
+      .findOneAndUpdate(
         {
-          $inc: { views: 1 },
+          _id: new Types.ObjectId(taskId),
+          status: TaskStatus.OPEN,
+          postedBy: { $ne: applicantObjectId },
+          applicants: { $ne: applicantObjectId },
+        },
+        {
           $addToSet: { applicants: applicantObjectId },
         },
         { new: true },
       )
-      .populate('postedBy', 'id email firstName lastName')
-      .exec();
+      .populate<{ postedBy: UserDocument; acceptedBy: UserDocument | null }>([
+        { path: 'postedBy', select: 'id email firstName lastName' },
+        { path: 'acceptedBy', select: 'id email firstName lastName' },
+      ]);
 
     if (!updatedTask) {
-      throw new NotFoundException('Task not found during update.');
+      // To provide a specific error, we check the conditions again.
+      const task = await this.taskModel.findById(taskId);
+      if (!task) {
+        throw new NotFoundException(`Task with ID "${taskId}" not found.`);
+      }
+      if (task.status !== TaskStatus.OPEN) {
+        throw new ForbiddenException('Task is not open for applications.');
+      }
+      if (task.postedBy.toString() === applicantObjectId.toString()) {
+        throw new ForbiddenException('You cannot apply for your own task.');
+      }
+      if (
+        task.applicants.some(
+          (id) => id.toString() === applicantObjectId.toString(),
+        )
+      ) {
+        throw new ForbiddenException('You have already applied for this task.');
+      }
+      // If no specific condition failed, it's a generic error.
+      throw new ForbiddenException(
+        'Could not apply for the task. It may have been updated or is no longer available.',
+      );
     }
 
-    // Create notification for the job poster
-    try {
-      const applicantName = await this.usersService.findNameById(applicantId);
-      if (isPopulatedUser(updatedTask.postedBy)) {
-        await this.notificationsService.createJobApplicationNotification(
-          updatedTask.postedBy._id.toString(),
-          applicantId,
-          taskId,
-          updatedTask.title,
-          applicantName,
-        );
-      }
-    } catch (error) {
-      console.error('Failed to create job application notification:', error);
+    // Notification logic
+    const applicantName =
+      `${applicantUser.firstName} ${applicantUser.lastName}`.trim() ||
+      applicantUser.email;
+
+    if (!isPopulatedUser(updatedTask.postedBy)) {
+      // This should not happen if population works correctly.
+      throw new ForbiddenException('Task poster information is missing.');
     }
+
+    await this.notificationsService.createJobApplicationNotification(
+      updatedTask.postedBy._id.toString(),
+      applicantId,
+      taskId,
+      updatedTask.title,
+      applicantName,
+    );
 
     return updatedTask;
   }
