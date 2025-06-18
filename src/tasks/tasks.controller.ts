@@ -51,6 +51,7 @@ export class TasksController {
     @Query('experienceLevel') experienceLevel?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
   ) {
     const filters = {
       postedBy,
@@ -66,8 +67,17 @@ export class TasksController {
       experienceLevel,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
+      sortBy,
     };
     return this.tasksService.findAllWithFilters(filters);
+  }
+
+  @Get(':id/with-applicants')
+  getTaskWithApplicantDetails(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ) {
+    return this.tasksService.getTaskWithApplicantDetails(id, req.user.id);
   }
 
   @Get(':id')

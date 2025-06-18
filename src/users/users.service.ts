@@ -103,4 +103,14 @@ export class UsersService {
 
     return savedUser; // Use type assertion to ensure the return type is User
   }
+
+  async findNameById(id: string): Promise<string> {
+    const user = await this.findOneById(id);
+    if (!user) {
+      return 'Someone';
+    }
+    return (
+      `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
+    );
+  }
 }
