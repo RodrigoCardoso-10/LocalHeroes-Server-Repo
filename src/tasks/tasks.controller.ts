@@ -110,13 +110,22 @@ export class TasksController {
     return this.tasksService.applyForTask(id, req.user.id);
   }
 
-  @Patch(':id/accept-applicant')
+  @Patch(':id/applicants/:applicantId/accept')
   acceptApplicant(
     @Param('id', ParseObjectIdPipe) id: string,
-    @Body('applicantId') applicantId: string,
+    @Param('applicantId', ParseObjectIdPipe) applicantId: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
     return this.tasksService.acceptApplicant(id, applicantId, req.user.id);
+  }
+
+  @Patch(':id/applicants/:applicantId/deny')
+  denyApplicant(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('applicantId', ParseObjectIdPipe) applicantId: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.denyApplicant(id, applicantId, req.user.id);
   }
 
   @Patch(':id/accept')

@@ -71,10 +71,10 @@ export class TasksService {
       .find()
       .populate<{
         postedBy: UserDocument;
-      }>('postedBy', 'id email firstName lastName')
+      }>('postedBy', '_id id email firstName lastName')
       .populate<{
         acceptedBy: UserDocument | null;
-      }>('acceptedBy', 'id email firstName lastName')
+      }>('acceptedBy', '_id id email firstName lastName')
       .exec();
     return tasks as PopulatedTask[];
   }
@@ -87,10 +87,10 @@ export class TasksService {
       .findByIdAndUpdate(id, { $inc: { views: 1 } }, { new: true })
       .populate<{
         postedBy: UserDocument;
-      }>('postedBy', 'id email firstName lastName')
+      }>('postedBy', '_id id email firstName lastName')
       .populate<{
         acceptedBy: UserDocument | null;
-      }>('acceptedBy', 'id email firstName lastName')
+      }>('acceptedBy', '_id id email firstName lastName')
       .exec();
     if (!task) {
       throw new NotFoundException(`Task with ID "${id}" not found`);
@@ -175,11 +175,11 @@ export class TasksService {
       .find({ postedBy: posterId as any })
       .populate<{ postedBy: UserDocument }>(
         'postedBy',
-        'id email firstName lastName',
+        '_id id email firstName lastName',
       )
       .populate<{ acceptedBy: UserDocument | null }>(
         'acceptedBy',
-        'id email firstName lastName',
+        '_id id email firstName lastName',
       )
       .exec();
     return tasks as PopulatedTask[];
@@ -193,11 +193,11 @@ export class TasksService {
       .find({ acceptedBy: doerId as any })
       .populate<{ postedBy: UserDocument }>(
         'postedBy',
-        'id email firstName lastName',
+        '_id id email firstName lastName',
       )
       .populate<{ acceptedBy: UserDocument | null }>(
         'acceptedBy',
-        'id email firstName lastName',
+        '_id id email firstName lastName',
       )
       .exec();
     return tasks as PopulatedTask[];
@@ -493,10 +493,10 @@ export class TasksService {
         .find(query)
         .populate<{
           postedBy: UserDocument;
-        }>('postedBy', 'id email firstName lastName')
+        }>('postedBy', '_id id email firstName lastName')
         .populate<{
           acceptedBy: UserDocument | null;
-        }>('acceptedBy', 'id email firstName lastName')
+        }>('acceptedBy', '_id id email firstName lastName')
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -622,8 +622,8 @@ export class TasksService {
         { new: true },
       )
       .populate<{ postedBy: UserDocument; acceptedBy: UserDocument | null }>([
-        { path: 'postedBy', select: 'id email firstName lastName' },
-        { path: 'acceptedBy', select: 'id email firstName lastName' },
+        { path: 'postedBy', select: '_id id email firstName lastName' },
+        { path: 'acceptedBy', select: '_id id email firstName lastName' },
       ]);
 
     if (!updatedTask) {
@@ -678,24 +678,30 @@ export class TasksService {
   ): Promise<any> {
     const task = await this.taskModel
       .findById(taskId)
-      .populate('applicants', 'id firstName lastName email')
+      .populate<{ postedBy: UserDocument }>('postedBy', 'id')
       .exec();
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new NotFoundException(`Task with ID "${taskId}" not found`);
     }
 
+    // Check if postedBy is populated and is a valid user document
     if (!isPopulatedUser(task.postedBy)) {
-      throw new ForbiddenException('Task poster information is missing.');
+      throw new ForbiddenException('Task poster information is not available.');
     }
 
+    // Now compare the UUID from the populated poster with the userId from the token
     if (task.postedBy.id !== userId) {
       throw new ForbiddenException(
-        'You are not authorized to view applicants for this task.',
+        'You do not have permission to view applicants for this task.',
       );
     }
 
-    return task;
+    // Re-populate with all the details needed for the frontend
+    return task.populate([
+      { path: 'postedBy', select: '_id id firstName lastName email' },
+      { path: 'applicants', select: '_id id firstName lastName email' },
+    ]);
   }
 
   async acceptApplicant(
@@ -703,67 +709,140 @@ export class TasksService {
     applicantId: string,
     posterId: string,
   ): Promise<Task> {
-    const task = await this.findOne(taskId);
+    const task = await this.taskModel
+      .findById(taskId)
+      .populate<{ postedBy: UserDocument }>('postedBy')
+      .exec();
 
-    if (task.status !== TaskStatus.OPEN) {
-      throw new ForbiddenException('Task is not open for acceptance.');
+    if (!task) {
+      throw new NotFoundException(`Task with ID "${taskId}" not found`);
     }
+
     if (!isPopulatedUser(task.postedBy)) {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    // Check if the user is the task poster
-    if (task.postedBy.id !== posterId) {
+    if (task.postedBy._id.toString() !== posterId) {
       throw new ForbiddenException(
-        'Only the task poster can accept applicants.',
+        'You are not authorized to accept applicants for this task.',
       );
     }
 
-    // Check if applicant has applied
-    if (!task.applications?.some((id) => id.toString() === applicantId)) {
-      throw new ForbiddenException('This user has not applied for this task.');
+    if (task.status !== TaskStatus.OPEN) {
+      throw new ForbiddenException('This task is not open for new applicants.');
     }
 
-    // Accept the applicant
-    task.acceptedBy = new Types.ObjectId(applicantId) as any;
+    const applicantObjectId = new Types.ObjectId(applicantId);
+    const applicantExists = task.applicants.some((id) =>
+      id.equals(applicantObjectId),
+    );
+
+    if (!applicantExists) {
+      throw new NotFoundException(
+        `Applicant with ID "${applicantId}" not found for this task.`,
+      );
+    }
+
+    const otherApplicants = task.applicants.filter(
+      (id) => !id.equals(applicantObjectId),
+    );
+
+    task.acceptedBy = applicantObjectId;
     task.status = TaskStatus.IN_PROGRESS;
-    const savedTask = await (task as any).save();
+    task.applicants = []; // Clear the list of applicants
 
-    // Create notification for accepted applicant
+    await task.save();
+
+    const posterName =
+      `${task.postedBy.firstName || ''} ${task.postedBy.lastName || ''}`.trim();
+
+    // Notify accepted applicant
     try {
-      const posterName =
-        `${task.postedBy.firstName || ''} ${task.postedBy.lastName || ''}`.trim() ||
-        task.postedBy.email;
-
       await this.notificationsService.createApplicationStatusNotification(
         applicantId,
         posterId,
         taskId,
         task.title,
-        true, // accepted
+        true, // Accepted
         posterName,
       );
+    } catch (error) {
+      console.error('Failed to send acceptance notification:', error);
+    }
 
-      // Create notifications for rejected applicants
-      const rejectedApplicants =
-        task.applications?.filter((id) => id.toString() !== applicantId) || [];
-      for (const rejectedId of rejectedApplicants) {
+    // Notify rejected applicants
+    for (const rejectedId of otherApplicants) {
+      try {
         await this.notificationsService.createApplicationStatusNotification(
           rejectedId.toString(),
           posterId,
           taskId,
           task.title,
-          false, // rejected
+          false, // Rejected
           posterName,
         );
+      } catch (error) {
+        console.error('Failed to send rejection notification:', error);
       }
-    } catch (error) {
-      console.error(
-        'Failed to create application status notifications:',
-        error,
+    }
+
+    return this.findOne(taskId);
+  }
+
+  async denyApplicant(
+    taskId: string,
+    applicantId: string,
+    posterId: string,
+  ): Promise<Task> {
+    const task = await this.taskModel
+      .findById(taskId)
+      .populate<{ postedBy: UserDocument }>('postedBy')
+      .exec();
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID "${taskId}" not found`);
+    }
+
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
+    }
+
+    if (task.postedBy._id.toString() !== posterId) {
+      throw new ForbiddenException(
+        'You are not authorized to deny applicants for this task.',
       );
     }
 
-    return savedTask;
+    const applicantObjectId = new Types.ObjectId(applicantId);
+    const initialCount = task.applicants.length;
+    task.applicants = task.applicants.filter(
+      (id) => !id.equals(applicantObjectId),
+    );
+
+    if (task.applicants.length === initialCount) {
+      throw new NotFoundException(
+        `Applicant with ID "${applicantId}" not found for this task.`,
+      );
+    }
+
+    await task.save();
+
+    const posterName =
+      `${task.postedBy.firstName || ''} ${task.postedBy.lastName || ''}`.trim();
+
+    try {
+      await this.notificationsService.createApplicationStatusNotification(
+        applicantId,
+        posterId,
+        taskId,
+        task.title,
+        false, // Rejected
+        posterName,
+      );
+    } catch (error) {
+      console.error('Failed to send rejection notification:', error);
+    }
+
+    return this.findOne(taskId);
   }
 }
