@@ -25,9 +25,10 @@ export class UpdateTaskDto {
   status?: TaskStatus;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  location?: string;
+  location?: {
+    address?: string;
+    coordinates?: [number, number];
+  };
 
   @IsOptional()
   @IsNumber()

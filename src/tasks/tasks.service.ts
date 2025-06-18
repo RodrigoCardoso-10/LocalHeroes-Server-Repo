@@ -11,6 +11,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { UserDocument } from '../users/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
+import { GeocodingService } from '../common/geocoding/geocoding.service';
 
 // Updated type guard with proper typing
 function isPopulatedUser(
@@ -31,14 +32,34 @@ export class TasksService {
     @InjectModel(Task.name) private taskModel: Model<Task>,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
+    private geocodingService: GeocodingService,
   ) {}
 
   async create(
     createTaskDto: CreateTaskDto,
     postedByUser: UserDocument, // Use UserDocument
   ): Promise<Task> {
+    const { location, ...restOfDto } = createTaskDto;
+    let locationData: any = {};
+
+    if (location && location.address) {
+      const coords = await this.geocodingService.geocode(location.address);
+      if (coords) {
+        locationData = {
+          address: location.address,
+          point: {
+            type: 'Point',
+            coordinates: [coords.longitude, coords.latitude],
+          },
+        };
+      } else {
+        locationData = { address: location.address };
+      }
+    }
+
     const createdTask = new this.taskModel({
-      ...createTaskDto,
+      ...restOfDto,
+      location: locationData,
       postedBy: postedByUser._id, // Access _id from UserDocument
       status: TaskStatus.OPEN,
     });
@@ -63,7 +84,7 @@ export class TasksService {
       throw new NotFoundException('Invalid task ID format');
     }
     const task = await this.taskModel
-      .findById(id)
+      .findByIdAndUpdate(id, { $inc: { views: 1 } }, { new: true })
       .populate<{
         postedBy: UserDocument;
       }>('postedBy', 'id email firstName lastName')
@@ -82,6 +103,7 @@ export class TasksService {
     userId: string,
   ): Promise<Task> {
     const task = await this.findOne(id);
+    const { location, ...restOfDto } = updateTaskDto;
 
     if (!isPopulatedUser(task.postedBy)) {
       throw new ForbiddenException('Task poster information is missing.');
@@ -103,10 +125,25 @@ export class TasksService {
       );
     }
 
-    const updatableDto = { ...updateTaskDto };
-    delete (updatableDto as any).postedBy; // Ensure postedBy is not in the update object
+    Object.assign(task, restOfDto);
 
-    Object.assign(task, updatableDto);
+    if (location && location.address) {
+      const coords = await this.geocodingService.geocode(location.address);
+      if (coords) {
+        task.location = {
+          address: location.address,
+          point: {
+            type: 'Point',
+            coordinates: [coords.longitude, coords.latitude],
+          },
+        };
+      } else {
+        task.location = { address: location.address };
+      }
+    } else if (location) {
+      task.location = location as any;
+    }
+
     return (task as any).save();
   }
   async remove(
@@ -189,6 +226,15 @@ export class TasksService {
 
     task.acceptedBy = doerObjectId as any;
     task.status = TaskStatus.IN_PROGRESS;
+
+    // Remove doer from applicants list
+    const doerIndex = task.applicants.findIndex((id) =>
+      id.equals(doerObjectId),
+    );
+    if (doerIndex > -1) {
+      task.applicants.splice(doerIndex, 1);
+    }
+
     const savedTask = await (task as any).save();
 
     // Create notification for the job poster that someone applied
@@ -290,6 +336,7 @@ export class TasksService {
     experienceLevel?: string;
     page?: number;
     limit?: number;
+    sortBy?: string;
   }): Promise<{
     tasks: PopulatedTask[];
     total: number;
@@ -311,6 +358,7 @@ export class TasksService {
       experienceLevel,
       page = 1,
       limit = 10,
+      sortBy,
     } = filters;
 
     // Build the query object
@@ -352,15 +400,12 @@ export class TasksService {
 
     // Text search in title and description
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ];
+      query.title = { $regex: search, $options: 'i' };
     }
 
     // Location filter
     if (location) {
-      query.location = { $regex: location, $options: 'i' };
+      query['location.address'] = { $regex: location, $options: 'i' };
     }
 
     // Category filter
@@ -382,7 +427,9 @@ export class TasksService {
     // Status filter
     if (status && Object.values(TaskStatus).includes(status as TaskStatus)) {
       query.status = status;
-    } // Date posted filter
+    }
+
+    // Date posted filter
     if (datePosted) {
       const now = new Date();
       let dateFilter: Date | null;
@@ -407,7 +454,9 @@ export class TasksService {
       if (dateFilter) {
         query.createdAt = { $gte: dateFilter };
       }
-    } // Tags filter (if we add tags to the schema later)
+    }
+
+    // Tags filter (if we add tags to the schema later)
     if (tags && tags.length > 0) {
       query.tags = { $in: tags };
     }
@@ -415,6 +464,24 @@ export class TasksService {
     // Experience level filter
     if (experienceLevel) {
       query.experienceLevel = { $regex: experienceLevel, $options: 'i' };
+    }
+
+    const sort: any = {};
+    if (sortBy) {
+      switch (sortBy) {
+        case 'price-asc':
+          sort.price = 1;
+          break;
+        case 'price-desc':
+          sort.price = -1;
+          break;
+        case 'latest':
+        default:
+          sort.createdAt = -1;
+          break;
+      }
+    } else {
+      sort.createdAt = -1;
     }
 
     // Calculate pagination
@@ -430,7 +497,7 @@ export class TasksService {
         .populate<{
           acceptedBy: UserDocument | null;
         }>('acceptedBy', 'id email firstName lastName')
-        .sort({ createdAt: -1 }) // Sort by newest first
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .exec(),
@@ -533,59 +600,89 @@ export class TasksService {
   }
 
   async applyForTask(taskId: string, applicantId: string): Promise<Task> {
-    const task = await this.findOne(taskId);
+    const taskToApply = await this.taskModel.findById(taskId).exec();
 
-    if (task.status !== TaskStatus.OPEN) {
+    if (!taskToApply) {
+      throw new NotFoundException(`Task with ID "${taskId}" not found`);
+    }
+
+    if (taskToApply.status !== TaskStatus.OPEN) {
       throw new ForbiddenException('Task is not open for applications.');
     }
-    if (!isPopulatedUser(task.postedBy)) {
-      throw new ForbiddenException('Task poster information is missing.');
-    }
 
-    // Check if user is trying to apply for their own task
-    if (task.postedBy.id === applicantId) {
+    if (taskToApply.postedBy.toString() === applicantId) {
       throw new ForbiddenException('You cannot apply for your own task.');
     }
 
-    // Check if user has already applied
+    if (taskToApply.acceptedBy) {
+      throw new ForbiddenException('Task has already been accepted.');
+    }
+
     const applicantObjectId = new Types.ObjectId(applicantId);
-    if (task.applications?.some((id) => id.toString() === applicantId)) {
+    if (taskToApply.applicants.some((id) => id.equals(applicantObjectId))) {
       throw new ForbiddenException('You have already applied for this task.');
     }
 
-    // Add application
-    if (!task.applications) {
-      task.applications = [];
-    }
-    task.applications.push(applicantObjectId);
-    const savedTask = await (task as any).save();
-
-    // Get applicant's information for notification
-    try {
-      const applicantPopulated = await this.taskModel.populate(
-        { applications: [applicantObjectId] },
-        { path: 'applications', select: 'firstName lastName email' },
-      );
-
-      const applicant = applicantPopulated?.applications?.[0] as any;
-      const applicantName = applicant
-        ? `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() ||
-          applicant.email
-        : 'Someone';
-
-      // Create notification for the job poster that someone applied
-      await this.notificationsService.createJobApplicationNotification(
-        task.postedBy._id.toString(),
-        applicantId,
+    // Atomically increment views and add applicant
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
         taskId,
-        task.title,
-        applicantName,
-      );
+        {
+          $inc: { views: 1 },
+          $addToSet: { applicants: applicantObjectId },
+        },
+        { new: true },
+      )
+      .populate('postedBy', 'id email firstName lastName')
+      .exec();
+
+    if (!updatedTask) {
+      throw new NotFoundException('Task not found during update.');
+    }
+
+    // Create notification for the job poster
+    try {
+      const applicantName = await this.usersService.findNameById(applicantId);
+      if (isPopulatedUser(updatedTask.postedBy)) {
+        await this.notificationsService.createJobApplicationNotification(
+          updatedTask.postedBy._id.toString(),
+          applicantId,
+          taskId,
+          updatedTask.title,
+          applicantName,
+        );
+      }
     } catch (error) {
       console.error('Failed to create job application notification:', error);
     }
 
-    return savedTask;
+    return updatedTask;
+  }
+
+  async getTaskWithApplicantDetails(
+    taskId: string,
+    userId: string,
+  ): Promise<any> {
+    const task = await this.taskModel
+      .findById(taskId)
+      .populate('applicants', 'id firstName lastName email')
+      .exec();
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
+    }
+
+    if (task.postedBy.id !== userId) {
+      throw new ForbiddenException(
+        'You are not authorized to view applicants for this task.',
+      );
+    }
+
+    return task;
   }
 
   async acceptApplicant(
