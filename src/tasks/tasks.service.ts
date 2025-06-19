@@ -362,40 +362,14 @@ export class TasksService {
     } = filters;
 
     // Build the query object
-    const query: any = {};
-
-    // User-specific filters - handle UUID to ObjectId conversion
+    const query: any = {}; // User-specific filters - directly use MongoDB ObjectId
     if (postedBy) {
-      try {
-        // Try to find the user by UUID to get their MongoDB ObjectId
-        const user = await this.usersService.findOneById(postedBy);
-        query.postedBy = user._id; // Use the MongoDB ObjectId for the query
-      } catch (error) {
-        // If user not found, return empty results instead of throwing error
-        return {
-          tasks: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        };
-      }
+      console.log('Using postedBy filter with MongoDB ObjectId:', postedBy);
+      query.postedBy = postedBy; // Use the MongoDB ObjectId directly
     }
     if (acceptedBy) {
-      try {
-        // Try to find the user by UUID to get their MongoDB ObjectId
-        const user = await this.usersService.findOneById(acceptedBy);
-        query.acceptedBy = user._id; // Use the MongoDB ObjectId for the query
-      } catch (error) {
-        // If user not found, return empty results instead of throwing error
-        return {
-          tasks: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        };
-      }
+      console.log('Using acceptedBy filter with MongoDB ObjectId:', acceptedBy);
+      query.acceptedBy = acceptedBy; // Use the MongoDB ObjectId directly
     }
 
     // Text search in title and description

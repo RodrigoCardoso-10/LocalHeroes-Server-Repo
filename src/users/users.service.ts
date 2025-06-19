@@ -36,9 +36,8 @@ export class UsersService {
     const savedUser = await newUser.save();
     return savedUser;
   }
-
   async findOneById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findOne({ id }).exec();
+    const user = await this.userModel.findById(id).exec();
     if (!user) {
       const errorMessage = `User with ID ${id} not found.`;
       throw new NotFoundException(errorMessage);
@@ -65,12 +64,11 @@ export class UsersService {
     }
     return user; // Use type assertion to ensure the return type is User
   }
-
   async updateUser(
     id: string,
     updateUserDto: UpdateUserDto,
   ): Promise<UserDocument> {
-    const user = await this.userModel.findOne({ id }).exec();
+    const user = await this.userModel.findById(id).exec();
 
     if (!user) {
       const errorMessage = `User with ID ${id} not found.`;
@@ -82,7 +80,7 @@ export class UsersService {
     }
 
     const updatedUser = await this.userModel
-      .findOneAndUpdate({ id }, { $set: updateUserDto }, { new: true })
+      .findByIdAndUpdate(id, { $set: updateUserDto }, { new: true })
       .exec();
 
     if (!updatedUser) {

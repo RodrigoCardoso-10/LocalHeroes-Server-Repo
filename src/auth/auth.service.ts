@@ -85,15 +85,13 @@ export class AuthService {
       const isMatch = await bcrypt.compare(pass, user.password);
       if (!isMatch) {
         throw new ForbiddenException('Invalid credentials');
-      }
-
-      // Convert Mongoose document to plain object and extract needed fields
+      } // Convert Mongoose document to plain object and extract needed fields
       const userObj = user.toObject ? user.toObject() : user;
-      const { password, _id, __v, ...result } = userObj;
+      const { password, __v, ...result } = userObj;
 
-      // Ensure we always use the UUID id field, not the MongoDB _id
-      if (!result.id) {
-        throw new ForbiddenException('User missing UUID identifier');
+      // Ensure we have the MongoDB _id field
+      if (!result._id) {
+        throw new ForbiddenException('User missing identifier');
       }
 
       console.log('validateUser: result after destructuring:', result);
@@ -102,7 +100,7 @@ export class AuthService {
       throw error;
     }
   }
-  async login(user: Omit<User, 'password'>) {
+  async login(user: any) {
     try {
       console.log(
         'LOGIN: user.id being passed to refreshTokensService.create:',
@@ -112,13 +110,13 @@ export class AuthService {
       const jti = uuidv4();
       const payload = {
         email: user.email,
-        sub: user.id,
+        sub: user._id, // Use _id for JWT payload
         jti,
         role: user.role,
       };
       const accessToken = this.generateAccessToken(payload);
       const refreshToken = await this.refreshTokensService.create(
-        user.id,
+        user.id, // Use UUID for refresh tokens service
         payload,
         jti,
       );
@@ -170,7 +168,7 @@ export class AuthService {
         await this.mailService.sendPasswordResetEmail(
           email,
           this.jwtService.sign(
-            { userId: user.id },
+            { userId: user._id },
             {
               expiresIn: '20m',
               secret: process.env.JWT_PASSWORD_SECRET,
