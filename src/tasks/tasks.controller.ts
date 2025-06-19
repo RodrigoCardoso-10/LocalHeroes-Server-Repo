@@ -93,21 +93,20 @@ export class TasksController {
     // Use req.user._id (MongoDB ObjectId as string)
     return this.tasksService.update(id, updateTaskDto, req.user._id.toString());
   }
-
   @Delete(':id')
   remove(
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<{ deleted: boolean; message?: string }> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.remove(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.remove(id, req.user._id.toString());
   }
   @Patch(':id/apply')
   applyForTask(
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    return this.tasksService.applyForTask(id, req.user.id);
+    return this.tasksService.applyForTask(id, req.user._id.toString());
   }
 
   @Patch(':id/applicants/:applicantId/accept')
@@ -116,16 +115,23 @@ export class TasksController {
     @Param('applicantId') applicantId: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    return this.tasksService.acceptApplicant(id, applicantId, req.user.id);
+    return this.tasksService.acceptApplicant(
+      id,
+      applicantId,
+      req.user._id.toString(),
+    );
   }
-
   @Patch(':id/applicants/:applicantId/deny')
   denyApplicant(
     @Param('id', ParseObjectIdPipe) id: string,
     @Param('applicantId') applicantId: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    return this.tasksService.denyApplicant(id, applicantId, req.user.id);
+    return this.tasksService.denyApplicant(
+      id,
+      applicantId,
+      req.user._id.toString(),
+    );
   }
 
   @Patch(':id/accept')
@@ -133,8 +139,8 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.acceptTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.acceptTask(id, req.user._id.toString());
   }
 
   @Patch(':id/complete')
@@ -142,8 +148,8 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.completeTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.completeTask(id, req.user._id.toString());
   }
 
   @Patch(':id/cancel')
@@ -151,8 +157,8 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.cancelTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.cancelTask(id, req.user._id.toString());
   }
 
   @Patch(':id/confirm-completion')
@@ -160,6 +166,6 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    return this.tasksService.confirmCompletion(id, req.user.id);
+    return this.tasksService.confirmCompletion(id, req.user._id.toString());
   }
 }

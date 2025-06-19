@@ -13,9 +13,9 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schemas/user.schema';
-import { UuidValidationPipe } from '../common/pipes/uuid.pipe';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthFastifyRequest } from '../auth/interfaces/auth-fastify-request.interface';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 
 @Controller('users')
 export class UsersController {
@@ -25,11 +25,10 @@ export class UsersController {
   async create(@Body() createUserDto: CreateUserDto): Promise<User> {
     return await this.usersService.create(createUserDto);
   }
-
   @UseGuards(JwtAuthGuard)
   @Get('userdata')
   async findOne(@Req() req: AuthFastifyRequest): Promise<User> {
-    return await this.usersService.findOneById(req.user.id);
+    return await this.usersService.findOneById(req.user._id.toString());
   }
 
   @UseGuards(JwtAuthGuard)
@@ -38,7 +37,19 @@ export class UsersController {
     @Req() req: AuthFastifyRequest,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<User> {
-    return await this.usersService.updateUser(req.user.id, updateUserDto);
+    return await this.usersService.updateUser(
+      req.user._id.toString(),
+      updateUserDto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('deposit')
+  async deposit(
+    @Req() req: AuthFastifyRequest,
+    @Body() { amount }: { amount: number },
+  ): Promise<User> {
+    return await this.usersService.deposit(req.user._id.toString(), amount);
   }
 
   @Get('by-email/:email')
