@@ -111,4 +111,18 @@ export class UsersService {
       `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
     );
   }
+
+  async deposit(userId: string, amount: number): Promise<UserDocument> {
+    if (amount <= 0) {
+      throw new Error('Deposit amount must be positive');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+
+    user.balance = (user.balance || 0) + amount;
+    return await user.save();
+  }
 }

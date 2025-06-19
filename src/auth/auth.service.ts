@@ -221,7 +221,7 @@ export class AuthService {
         user = await this.usersService.findOneByEmail(req.user.email);
       } catch (error) {
         if (error instanceof NotFoundException) {
-          const randomPassword = uuidv4();
+          const randomPassword = Math.random().toString(36).slice(-8);
           const hashedPassword = await bcrypt.hash(randomPassword, 10);
           user = await this.usersService.create({
             email: req.user.email,

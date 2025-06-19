@@ -110,8 +110,8 @@ export class TasksService {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    // Compare with task.postedBy.id (string uuid) instead of _id.toString()
-    if (task.postedBy.id !== userId) {
+    // Compare with task.postedBy._id (MongoDB ObjectId as string)
+    if (task.postedBy._id.toString() !== userId) {
       throw new ForbiddenException(
         'You are not authorized to update this task.',
       );
@@ -152,13 +152,12 @@ export class TasksService {
     userId: string,
   ): Promise<{ deleted: boolean; message?: string }> {
     const task = await this.findOne(id);
-
     if (!isPopulatedUser(task.postedBy)) {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    // Compare with task.postedBy.id (string uuid) instead of _id.toString()
-    if (task.postedBy.id !== userId) {
+    // Compare with task.postedBy._id (MongoDB ObjectId as string)
+    if (task.postedBy._id.toString() !== userId) {
       throw new ForbiddenException(
         'You are not authorized to delete this task.',
       );
@@ -213,8 +212,8 @@ export class TasksService {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    // Compare with task.postedBy.id (string uuid) instead of _id.toString()
-    if (task.postedBy.id === doerId) {
+    // Compare with task.postedBy._id (MongoDB ObjectId as string)
+    if (task.postedBy._id.toString() === doerId) {
       throw new ForbiddenException('You cannot accept your own task.');
     }
 
@@ -699,10 +698,8 @@ export class TasksService {
     // Check if postedBy is populated and is a valid user document
     if (!isPopulatedUser(task.postedBy)) {
       throw new ForbiddenException('Task poster information is not available.');
-    }
-
-    // Now compare the UUID from the populated poster with the userId from the token
-    if (task.postedBy.id !== userId) {
+    } // Now compare the ObjectId from the populated poster with the userId from the token
+    if (task.postedBy._id.toString() !== userId) {
       throw new ForbiddenException(
         'You do not have permission to view applicants for this task.',
       );

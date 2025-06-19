@@ -1,9 +1,9 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString, IsMongoId } from 'class-validator';
 
 export class CreateMessageDto {
   @IsNotEmpty()
   @IsString()
-  @IsUUID()
+  @IsMongoId()
   receiverId: string;
 
   @IsNotEmpty()
