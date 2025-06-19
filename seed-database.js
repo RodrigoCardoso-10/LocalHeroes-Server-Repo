@@ -1,6 +1,5 @@
 const { MongoClient } = require('mongodb');
 const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid');
 
 // MongoDB connection configuration
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://GroupI:admin@groupi.ei1sl0s.mongodb.net/?retryWrites=true&w=majority&appName=GroupI';
@@ -25,7 +24,6 @@ const cityCoordinates = {
 // Sample data
 const sampleUsers = [
   {
-    id: uuidv4(),
     firstName: 'John',
     lastName: 'Doe',
     email: 'john.doe@example.com',
@@ -37,7 +35,6 @@ const sampleUsers = [
     updatedAt: new Date(),
   },
   {
-    id: uuidv4(),
     firstName: 'Jane',
     lastName: 'Smith',
     email: 'jane.smith@example.com',
@@ -49,7 +46,6 @@ const sampleUsers = [
     updatedAt: new Date(),
   },
   {
-    id: uuidv4(),
     firstName: 'Mike',
     lastName: 'Johnson',
     email: 'mike.johnson@example.com',
@@ -61,7 +57,6 @@ const sampleUsers = [
     updatedAt: new Date(),
   },
   {
-    id: uuidv4(),
     firstName: 'Sarah',
     lastName: 'Williams',
     email: 'sarah.williams@example.com',
@@ -73,7 +68,6 @@ const sampleUsers = [
     updatedAt: new Date(),
   },
   {
-    id: uuidv4(),
     firstName: 'David',
     lastName: 'Brown',
     email: 'david.brown@example.com',

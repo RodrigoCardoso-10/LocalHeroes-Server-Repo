@@ -103,20 +103,20 @@ export class AuthService {
   async login(user: any) {
     try {
       console.log(
-        'LOGIN: user.id being passed to refreshTokensService.create:',
-        user.id,
+        'LOGIN: user._id being passed to refreshTokensService.create:',
+        user._id,
       );
       console.log('LOGIN: full user object:', user);
       const jti = uuidv4();
       const payload = {
         email: user.email,
-        sub: user._id, // Use _id for JWT payload
+        sub: user._id.toString(), // Use _id as string for JWT payload
         jti,
         role: user.role,
       };
       const accessToken = this.generateAccessToken(payload);
       const refreshToken = await this.refreshTokensService.create(
-        user.id, // Use UUID for refresh tokens service
+        user._id.toString(), // Use _id for refresh tokens service
         payload,
         jti,
       );

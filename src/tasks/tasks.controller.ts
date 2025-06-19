@@ -90,8 +90,8 @@ export class TasksController {
     @Body() updateTaskDto: UpdateTaskDto,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.update(id, updateTaskDto, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.update(id, updateTaskDto, req.user._id.toString());
   }
 
   @Delete(':id')

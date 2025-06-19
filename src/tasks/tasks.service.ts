@@ -10,6 +10,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { UserDocument } from '../users/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
 import { UsersService } from '../users/users.service';
 import { GeocodingService } from '../common/geocoding/geocoding.service';
 
@@ -257,33 +258,69 @@ export class TasksService {
 
     return savedTask;
   }
-
   async completeTask(taskId: string, userId: string): Promise<Task> {
     const task = await this.findOne(taskId);
 
-    // Use type assertions after checking if it's populated
-    let isPoster = false;
-    if (isPopulatedUser(task.postedBy)) {
-      isPoster = task.postedBy.id === userId;
+    // Only the employer (job poster) can mark a task as completed
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
     }
 
-    // Separate null check and type assertion
-    let isDoer = false;
-    if (task.acceptedBy && isPopulatedUser(task.acceptedBy)) {
-      isDoer = task.acceptedBy.id === userId;
-    }
-
-    if (!isPoster && !isDoer) {
+    if (task.postedBy.id !== userId) {
       throw new ForbiddenException(
-        'You are not authorized to mark this task as completed.',
+        'Only the job poster can mark this task as completed.',
       );
     }
+
     if (task.status !== TaskStatus.IN_PROGRESS) {
       throw new ForbiddenException(
         'Task must be IN_PROGRESS to be marked as completed.',
       );
     }
-    task.status = TaskStatus.COMPLETED;
+
+    if (!task.acceptedBy) {
+      throw new ForbiddenException(
+        'Cannot complete task - no employee has been assigned.',
+      );
+    }
+
+    if (!isPopulatedUser(task.acceptedBy)) {
+      throw new ForbiddenException('Employee information is missing.');
+    }
+
+    // Get full user documents for balance transfer
+    const employer = await this.usersService.findOneById(
+      task.postedBy._id.toString(),
+    );
+    const employee = await this.usersService.findOneById(
+      task.acceptedBy._id.toString(),
+    );
+
+    // Check if employer has sufficient balance
+    if (employer.balance < task.price) {
+      throw new ForbiddenException(
+        `Insufficient balance. You need $${task.price} but only have $${employer.balance}.`,
+      );
+    }
+
+    // Transfer funds from employer to employee
+    employer.balance -= task.price;
+    employee.balance += task.price;
+
+    // Save updated balances
+    await employer.save();
+    await employee.save();
+
+    // Mark task as completed and paid
+    task.status = TaskStatus.PAID; // Send notification to employee
+    await this.notificationsService.create({
+      userId: (employee._id as Types.ObjectId).toString(),
+      title: 'Job Completed',
+      message: `Job "${task.title}" has been completed and you received $${task.price}!`,
+      type: NotificationType.JOB_COMPLETED,
+      taskId: taskId,
+    });
+
     return (task as any).save();
   }
 
@@ -827,27 +864,10 @@ export class TasksService {
 
     return this.findOne(taskId);
   }
-
+  // Note: confirmCompletion is deprecated - payment now happens automatically in completeTask
   async confirmCompletion(taskId: string, posterId: string): Promise<Task> {
-    const task = await this.findOne(taskId);
-
-    if (!isPopulatedUser(task.postedBy)) {
-      throw new ForbiddenException('Task poster information is missing.');
-    }
-
-    if (task.postedBy.id !== posterId) {
-      throw new ForbiddenException(
-        'You are not authorized to confirm the completion of this task.',
-      );
-    }
-
-    if (task.status !== TaskStatus.COMPLETED) {
-      throw new ForbiddenException(
-        'This task cannot be confirmed. It is not marked as completed.',
-      );
-    }
-
-    task.status = TaskStatus.PAID;
-    return (task as any).save();
+    throw new ForbiddenException(
+      'This endpoint is deprecated. Tasks are automatically paid when marked as completed.',
+    );
   }
 }
