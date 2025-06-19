@@ -29,7 +29,7 @@ export class AuthService {
   generateAccessToken(payload: JwtAccessPayload): string {
     try {
       return this.jwtService.sign(payload, {
-        expiresIn: '15m',
+        expiresIn: '7d',
         secret: process.env.JWT_SECRET,
       });
     } catch (error) {
@@ -245,7 +245,11 @@ export class AuthService {
     }
   }
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.usersService.findOneById(userId);
     if (!user.password) {
       throw new UnauthorizedException('No password set for user.');

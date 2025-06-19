@@ -23,7 +23,9 @@ async function bootstrap() {
       ? process.env.COOKIE_SECRET
       : randomBytes(32).toString('hex');
 
-  await app.register(fastifyCookie);
+  await app.register(fastifyCookie, {
+    secret: secureSecret,
+  });
 
   await app.register(fastifySecureSession, {
     key: Buffer.from(secureSecret, 'hex'),
