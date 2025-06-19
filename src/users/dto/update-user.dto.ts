@@ -34,9 +34,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString({ each: true })
   skills?: string[];
-
   @IsOptional()
   @IsString()
-  @MaxLength(500)
   profilePicture?: string;
 }
