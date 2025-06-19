@@ -7,6 +7,7 @@ export enum TaskStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
+  PAID = 'PAID',
 }
 
 @Schema({ timestamps: true })

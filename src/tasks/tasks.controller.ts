@@ -72,7 +72,7 @@ export class TasksController {
     return this.tasksService.findAllWithFilters(filters);
   }
 
-  @Get(':id/with-applicants')
+  @Get(':id/applicants')
   getTaskWithApplicantDetails(
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
@@ -113,7 +113,7 @@ export class TasksController {
   @Patch(':id/applicants/:applicantId/accept')
   acceptApplicant(
     @Param('id', ParseObjectIdPipe) id: string,
-    @Param('applicantId', ParseObjectIdPipe) applicantId: string,
+    @Param('applicantId') applicantId: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
     return this.tasksService.acceptApplicant(id, applicantId, req.user.id);
@@ -122,7 +122,7 @@ export class TasksController {
   @Patch(':id/applicants/:applicantId/deny')
   denyApplicant(
     @Param('id', ParseObjectIdPipe) id: string,
-    @Param('applicantId', ParseObjectIdPipe) applicantId: string,
+    @Param('applicantId') applicantId: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
     return this.tasksService.denyApplicant(id, applicantId, req.user.id);
@@ -153,5 +153,13 @@ export class TasksController {
   ): Promise<Task> {
     // Use req.user.id (string uuid) instead of _id (ObjectId)
     return this.tasksService.cancelTask(id, req.user.id);
+  }
+
+  @Patch(':id/confirm-completion')
+  confirmCompletion(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.confirmCompletion(id, req.user.id);
   }
 }

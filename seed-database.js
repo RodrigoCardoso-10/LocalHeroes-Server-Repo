@@ -1,5 +1,6 @@
 const { MongoClient } = require('mongodb');
 const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 
 // MongoDB connection configuration
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://GroupI:admin@groupi.ei1sl0s.mongodb.net/?retryWrites=true&w=majority&appName=GroupI';
@@ -15,46 +16,61 @@ const cityCoordinates = {
 // Sample data
 const sampleUsers = [
   {
+    id: uuidv4(),
     firstName: 'John',
     lastName: 'Doe',
     email: 'john.doe@example.com',
     password: 'password123', // Will be hashed
+    role: 'USER',
+    balance: 100,
     skills: ['gardening', 'maintenance'],
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
+    id: uuidv4(),
     firstName: 'Jane',
     lastName: 'Smith',
     email: 'jane.smith@example.com',
     password: 'password123',
+    role: 'USER',
+    balance: 150,
     skills: ['cleaning', 'organizing'],
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
+    id: uuidv4(),
     firstName: 'Mike',
     lastName: 'Johnson',
     email: 'mike.johnson@example.com',
     password: 'password123',
+    role: 'USER',
+    balance: 200,
     skills: ['moving', 'physical labor'],
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
+    id: uuidv4(),
     firstName: 'Sarah',
     lastName: 'Williams',
     email: 'sarah.williams@example.com',
     password: 'password123',
+    role: 'USER',
+    balance: 50,
     skills: ['pet care', 'dog walking'],
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
+    id: uuidv4(),
     firstName: 'David',
     lastName: 'Brown',
     email: 'david.brown@example.com',
     password: 'password123',
+    role: 'USER',
+    balance: 300,
     skills: ['electrical', 'technical'],
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -254,47 +270,53 @@ async function seedDatabase() {
     
     const db = client.db();
     
-    // Check if data already exists
-    const existingUsers = await db.collection('users').countDocuments();
-    const existingTasks = await db.collection('tasks').countDocuments();
-    
-    // if (existingUsers > 0 && existingTasks > 0) {
-    //   console.log('Database already has data. Skipping seeding.');
-    //   return;
-    // }
-    
     console.log('Seeding database...');
     
-    // Clear existing tasks to re-seed with new geo data
+    // Hash passwords for users
+    const saltRounds = 10;
+    for (const user of sampleUsers) {
+      user.password = await bcrypt.hash(user.password, saltRounds);
+      // Ensure role is set if not provided in sample data
+      if (!user.role) {
+        user.role = 'USER';
+      }
+    }
+
+    // Upsert users based on email to add/update them
+    const userUpsertOperations = sampleUsers.map((user) => ({
+      updateOne: {
+        filter: { email: user.email },
+        update: { $set: user },
+        upsert: true,
+      },
+    }));
+
+    const userResult = await db.collection('users').bulkWrite(userUpsertOperations);
+    console.log(
+      `Users processed: ${userResult.upsertedCount} inserted, ${userResult.modifiedCount} modified, ${userResult.matchedCount} matched.`,
+    );
+
+    // Clear existing tasks to re-seed with new geo data and user references
     await db.collection('tasks').deleteMany({});
     console.log('Cleared existing tasks.');
 
-    // Hash passwords for users
-    const saltRounds = 10;
-    for (let user of sampleUsers) {
-      user.password = await bcrypt.hash(user.password, saltRounds);
+    // Fetch all users to get their _id for task assignment
+    const allUsers = await db.collection('users').find({}).toArray();
+    const userIds = allUsers.map((user) => user._id);
+
+    if (userIds.length === 0) {
+      console.error('No users found in the database. Cannot assign tasks.');
+      return;
     }
-      // Insert users only if they don't exist
-    let userIds = [];
-    if (existingUsers === 0) {
-      const userResult = await db.collection('users').insertMany(sampleUsers);
-      console.log(`Inserted ${userResult.insertedCount} users`);
-      userIds = Object.values(userResult.insertedIds);
-    } else {
-      console.log('Users already exist, fetching existing user IDs...');
-      const existingUserDocs = await db.collection('users').find({}).toArray();
-      userIds = existingUserDocs.map(user => user._id);
-      console.log(`Found ${userIds.length} existing users`);
-    }
-      // Insert tasks
-      // Assign random users to tasks
-      const tasksWithUsers = sampleTasks.map((task, index) => ({
-        ...task,
-        postedBy: userIds[index % userIds.length], // Cycle through users
-      }));
-      
-      const taskResult = await db.collection('tasks').insertMany(tasksWithUsers);
-      console.log(`Inserted ${taskResult.insertedCount} tasks`);
+
+    // Assign random users to tasks
+    const tasksWithUsers = sampleTasks.map((task, index) => ({
+      ...task,
+      postedBy: userIds[index % userIds.length], // Cycle through users
+    }));
+    
+    const taskResult = await db.collection('tasks').insertMany(tasksWithUsers);
+    console.log(`Inserted ${taskResult.insertedCount} tasks`);
     
     console.log('Database seeding completed successfully!');
     

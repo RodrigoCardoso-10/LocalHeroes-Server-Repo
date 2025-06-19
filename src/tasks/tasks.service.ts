@@ -239,14 +239,14 @@ export class TasksService {
 
     // Create notification for the job poster that someone applied
     try {
-      const doerName = doerUser?.acceptedBy
-        ? `${(doerUser.acceptedBy as any).firstName || ''} ${(doerUser.acceptedBy as any).lastName || ''}`.trim() ||
-          (doerUser.acceptedBy as any).email
-        : 'Someone';
+      const doerName =
+        (doerUser?.acceptedBy
+          ? `${(doerUser.acceptedBy as any).firstName || ''} ${(doerUser.acceptedBy as any).lastName || ''}`.trim()
+          : '') || 'Someone';
 
       await this.notificationsService.createJobApplicationNotification(
         task.postedBy._id.toString(),
-        doerId,
+        doerObjectId.toString(),
         taskId,
         task.title,
         doerName,
@@ -663,7 +663,7 @@ export class TasksService {
 
     await this.notificationsService.createJobApplicationNotification(
       updatedTask.postedBy._id.toString(),
-      applicantId,
+      applicantObjectId.toString(),
       taskId,
       updatedTask.title,
       applicantName,
@@ -722,7 +722,7 @@ export class TasksService {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    if (task.postedBy._id.toString() !== posterId) {
+    if (task.postedBy.id !== posterId) {
       throw new ForbiddenException(
         'You are not authorized to accept applicants for this task.',
       );
@@ -732,7 +732,11 @@ export class TasksService {
       throw new ForbiddenException('This task is not open for new applicants.');
     }
 
-    const applicantObjectId = new Types.ObjectId(applicantId);
+    const applicantObjectId = Types.ObjectId.isValid(applicantId)
+      ? new Types.ObjectId(applicantId)
+      : ((await this.usersService.findOneById(applicantId))
+          ._id as Types.ObjectId);
+
     const applicantExists = task.applicants.some((id) =>
       id.equals(applicantObjectId),
     );
@@ -759,8 +763,8 @@ export class TasksService {
     // Notify accepted applicant
     try {
       await this.notificationsService.createApplicationStatusNotification(
-        applicantId,
-        posterId,
+        applicantObjectId.toString(),
+        task.postedBy._id.toString(),
         taskId,
         task.title,
         true, // Accepted
@@ -775,7 +779,7 @@ export class TasksService {
       try {
         await this.notificationsService.createApplicationStatusNotification(
           rejectedId.toString(),
-          posterId,
+          task.postedBy._id.toString(),
           taskId,
           task.title,
           false, // Rejected
@@ -807,13 +811,17 @@ export class TasksService {
       throw new ForbiddenException('Task poster information is missing.');
     }
 
-    if (task.postedBy._id.toString() !== posterId) {
+    if (task.postedBy.id !== posterId) {
       throw new ForbiddenException(
         'You are not authorized to deny applicants for this task.',
       );
     }
 
-    const applicantObjectId = new Types.ObjectId(applicantId);
+    const applicantObjectId = Types.ObjectId.isValid(applicantId)
+      ? new Types.ObjectId(applicantId)
+      : ((await this.usersService.findOneById(applicantId))
+          ._id as Types.ObjectId);
+
     const initialCount = task.applicants.length;
     task.applicants = task.applicants.filter(
       (id) => !id.equals(applicantObjectId),
@@ -832,8 +840,8 @@ export class TasksService {
 
     try {
       await this.notificationsService.createApplicationStatusNotification(
-        applicantId,
-        posterId,
+        applicantObjectId.toString(),
+        task.postedBy._id.toString(),
         taskId,
         task.title,
         false, // Rejected
@@ -844,5 +852,28 @@ export class TasksService {
     }
 
     return this.findOne(taskId);
+  }
+
+  async confirmCompletion(taskId: string, posterId: string): Promise<Task> {
+    const task = await this.findOne(taskId);
+
+    if (!isPopulatedUser(task.postedBy)) {
+      throw new ForbiddenException('Task poster information is missing.');
+    }
+
+    if (task.postedBy.id !== posterId) {
+      throw new ForbiddenException(
+        'You are not authorized to confirm the completion of this task.',
+      );
+    }
+
+    if (task.status !== TaskStatus.COMPLETED) {
+      throw new ForbiddenException(
+        'This task cannot be confirmed. It is not marked as completed.',
+      );
+    }
+
+    task.status = TaskStatus.PAID;
+    return (task as any).save();
   }
 }
