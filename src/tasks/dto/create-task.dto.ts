@@ -23,9 +23,10 @@ export class CreateTaskDto {
   description: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  location?: string;
+  location?: {
+    address?: string;
+    coordinates?: [number, number];
+  };
 
   @IsNumber()
   @Min(0)

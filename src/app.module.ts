@@ -11,6 +11,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import dbConfiguration from './config/db.config';
 import mailerConfig from './config/mailer.config';
 import { TasksModule } from './tasks/tasks.module';
+import { SeedersModule } from './seeders/seeders.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { TasksModule } from './tasks/tasks.module';
     RefreshTokensModule,
     MessagesModule,
     TasksModule,
+    SeedersModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

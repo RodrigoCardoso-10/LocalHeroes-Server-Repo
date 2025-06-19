@@ -7,6 +7,7 @@ export enum TaskStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
+  PAID = 'PAID',
 }
 
 @Schema({ timestamps: true })
@@ -26,12 +27,33 @@ export class Task extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   postedBy: UserDocument | Types.ObjectId;
-
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   acceptedBy?: UserDocument | Types.ObjectId | null;
 
-  @Prop({ trim: true })
-  location?: string; // Simple text location for now
+  @Prop({
+    type: {
+      address: { type: String, trim: true },
+      point: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point',
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0],
+        },
+      },
+    },
+    required: false,
+  })
+  location?: {
+    address?: string;
+    point?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+  };
 
   @Prop({ required: true, min: 0 })
   price: number;
@@ -46,6 +68,12 @@ export class Task extends Document {
 
   @Prop({ trim: true })
   experienceLevel?: string;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }] })
+  applicants: Types.ObjectId[];
+
+  @Prop({ type: Number, default: 0 })
+  views: number;
 }
 
 export const TaskSchema = SchemaFactory.createForClass(Task);

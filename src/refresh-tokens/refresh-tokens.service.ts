@@ -50,12 +50,11 @@ export class RefreshTokensService {
           .exec();
       }
       const hashedToken = await bcrypt.hash(token, 10);
-
       console.log('REFRESH TOKEN CREATE: userId received:', userId);
       console.log('REFRESH TOKEN CREATE: typeof userId:', typeof userId);
 
-      // Find user by UUID (id field) - this is what's passed from auth service
-      const user = await this.userModel.findOne({ id: userId }).exec();
+      // Find user by ObjectId (_id field) - this is what's passed from auth service
+      const user = await this.userModel.findById(userId).exec();
 
       console.log('REFRESH TOKEN CREATE: user found:', user);
 

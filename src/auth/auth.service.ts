@@ -29,7 +29,7 @@ export class AuthService {
   generateAccessToken(payload: JwtAccessPayload): string {
     try {
       return this.jwtService.sign(payload, {
-        expiresIn: '15m',
+        expiresIn: '7d',
         secret: process.env.JWT_SECRET,
       });
     } catch (error) {
@@ -85,15 +85,13 @@ export class AuthService {
       const isMatch = await bcrypt.compare(pass, user.password);
       if (!isMatch) {
         throw new ForbiddenException('Invalid credentials');
-      }
-
-      // Convert Mongoose document to plain object and extract needed fields
+      } // Convert Mongoose document to plain object and extract needed fields
       const userObj = user.toObject ? user.toObject() : user;
-      const { password, _id, __v, ...result } = userObj;
+      const { password, __v, ...result } = userObj;
 
-      // Ensure we always use the UUID id field, not the MongoDB _id
-      if (!result.id) {
-        throw new ForbiddenException('User missing UUID identifier');
+      // Ensure we have the MongoDB _id field
+      if (!result._id) {
+        throw new ForbiddenException('User missing identifier');
       }
 
       console.log('validateUser: result after destructuring:', result);
@@ -102,23 +100,23 @@ export class AuthService {
       throw error;
     }
   }
-  async login(user: Omit<User, 'password'>) {
+  async login(user: any) {
     try {
       console.log(
-        'LOGIN: user.id being passed to refreshTokensService.create:',
-        user.id,
+        'LOGIN: user._id being passed to refreshTokensService.create:',
+        user._id,
       );
       console.log('LOGIN: full user object:', user);
       const jti = uuidv4();
       const payload = {
         email: user.email,
-        sub: user.id,
+        sub: user._id.toString(), // Use _id as string for JWT payload
         jti,
         role: user.role,
       };
       const accessToken = this.generateAccessToken(payload);
       const refreshToken = await this.refreshTokensService.create(
-        user.id,
+        user._id.toString(), // Use _id for refresh tokens service
         payload,
         jti,
       );
@@ -170,7 +168,7 @@ export class AuthService {
         await this.mailService.sendPasswordResetEmail(
           email,
           this.jwtService.sign(
-            { userId: user.id },
+            { userId: user._id },
             {
               expiresIn: '20m',
               secret: process.env.JWT_PASSWORD_SECRET,
@@ -223,7 +221,7 @@ export class AuthService {
         user = await this.usersService.findOneByEmail(req.user.email);
       } catch (error) {
         if (error instanceof NotFoundException) {
-          const randomPassword = uuidv4();
+          const randomPassword = Math.random().toString(36).slice(-8);
           const hashedPassword = await bcrypt.hash(randomPassword, 10);
           user = await this.usersService.create({
             email: req.user.email,
@@ -243,5 +241,23 @@ export class AuthService {
         'Error during Google authentication',
       );
     }
+  }
+
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.usersService.findOneById(userId);
+    if (!user.password) {
+      throw new UnauthorizedException('No password set for user.');
+    }
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('Old password is incorrect.');
+    }
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.usersService.save(user);
+    return { message: 'Password changed successfully.' };
   }
 }

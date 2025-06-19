@@ -23,7 +23,6 @@ import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
-
   @Post()
   create(
     @Body() createTaskDto: CreateTaskDto,
@@ -31,6 +30,12 @@ export class TasksController {
   ): Promise<Task> {
     return this.tasksService.create(createTaskDto, req.user);
   }
+
+  @Get('filter-counts')
+  getFilterCounts() {
+    return this.tasksService.getFilterCounts();
+  }
+
   @Get()
   findAll(
     @Query('postedBy') postedBy?: string,
@@ -43,8 +48,10 @@ export class TasksController {
     @Query('status') status?: string,
     @Query('datePosted') datePosted?: string,
     @Query('tags') tags?: string,
+    @Query('experienceLevel') experienceLevel?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
   ) {
     const filters = {
       postedBy,
@@ -57,11 +64,20 @@ export class TasksController {
       status,
       datePosted,
       tags: tags ? tags.split(',') : undefined,
+      experienceLevel,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
+      sortBy,
     };
-
     return this.tasksService.findAllWithFilters(filters);
+  }
+
+  @Get(':id/applicants')
+  getTaskWithApplicantDetails(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ) {
+    return this.tasksService.getTaskWithApplicantDetails(id, req.user.id);
   }
 
   @Get(':id')
@@ -74,17 +90,48 @@ export class TasksController {
     @Body() updateTaskDto: UpdateTaskDto,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.update(id, updateTaskDto, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.update(id, updateTaskDto, req.user._id.toString());
   }
-
   @Delete(':id')
   remove(
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<{ deleted: boolean; message?: string }> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.remove(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.remove(id, req.user._id.toString());
+  }
+  @Patch(':id/apply')
+  applyForTask(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.applyForTask(id, req.user._id.toString());
+  }
+
+  @Patch(':id/applicants/:applicantId/accept')
+  acceptApplicant(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('applicantId') applicantId: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.acceptApplicant(
+      id,
+      applicantId,
+      req.user._id.toString(),
+    );
+  }
+  @Patch(':id/applicants/:applicantId/deny')
+  denyApplicant(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('applicantId') applicantId: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.denyApplicant(
+      id,
+      applicantId,
+      req.user._id.toString(),
+    );
   }
 
   @Patch(':id/accept')
@@ -92,8 +139,8 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.acceptTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.acceptTask(id, req.user._id.toString());
   }
 
   @Patch(':id/complete')
@@ -101,8 +148,8 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.completeTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.completeTask(id, req.user._id.toString());
   }
 
   @Patch(':id/cancel')
@@ -110,7 +157,15 @@ export class TasksController {
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: AuthFastifyRequest,
   ): Promise<Task> {
-    // Use req.user.id (string uuid) instead of _id (ObjectId)
-    return this.tasksService.cancelTask(id, req.user.id);
+    // Use req.user._id (MongoDB ObjectId as string)
+    return this.tasksService.cancelTask(id, req.user._id.toString());
+  }
+
+  @Patch(':id/confirm-completion')
+  confirmCompletion(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: AuthFastifyRequest,
+  ): Promise<Task> {
+    return this.tasksService.confirmCompletion(id, req.user._id.toString());
   }
 }

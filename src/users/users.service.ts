@@ -36,9 +36,8 @@ export class UsersService {
     const savedUser = await newUser.save();
     return savedUser;
   }
-
   async findOneById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findOne({ id }).exec();
+    const user = await this.userModel.findById(id).exec();
     if (!user) {
       const errorMessage = `User with ID ${id} not found.`;
       throw new NotFoundException(errorMessage);
@@ -65,12 +64,11 @@ export class UsersService {
     }
     return user; // Use type assertion to ensure the return type is User
   }
-
   async updateUser(
     id: string,
     updateUserDto: UpdateUserDto,
   ): Promise<UserDocument> {
-    const user = await this.userModel.findOne({ id }).exec();
+    const user = await this.userModel.findById(id).exec();
 
     if (!user) {
       const errorMessage = `User with ID ${id} not found.`;
@@ -82,7 +80,7 @@ export class UsersService {
     }
 
     const updatedUser = await this.userModel
-      .findOneAndUpdate({ id }, { $set: updateUserDto }, { new: true })
+      .findByIdAndUpdate(id, { $set: updateUserDto }, { new: true })
       .exec();
 
     if (!updatedUser) {
@@ -102,5 +100,29 @@ export class UsersService {
     }
 
     return savedUser; // Use type assertion to ensure the return type is User
+  }
+
+  async findNameById(id: string): Promise<string> {
+    const user = await this.findOneById(id);
+    if (!user) {
+      return 'Someone';
+    }
+    return (
+      `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
+    );
+  }
+
+  async deposit(userId: string, amount: number): Promise<UserDocument> {
+    if (amount <= 0) {
+      throw new Error('Deposit amount must be positive');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+
+    user.balance = (user.balance || 0) + amount;
+    return await user.save();
   }
 }

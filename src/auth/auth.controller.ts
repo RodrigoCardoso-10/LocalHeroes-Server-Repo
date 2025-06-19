@@ -6,10 +6,12 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -22,6 +24,9 @@ import {
   AuthFastifyRequest,
   LoginFastifyRequest,
 } from './interfaces/auth-fastify-request.interface';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import * as bcrypt from 'bcrypt';
+import { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -29,43 +34,18 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  @HttpCode(HttpStatus.OK)
   async login(
-    @Req() req: LoginFastifyRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
-    // Call AuthService.login and get tokens and user
-    const { accessToken, refreshToken, user } = await this.authService.login(
+    @Req() req: AuthFastifyRequest,
+    @Res() res: FastifyReply,
+  ): Promise<void> {
+    const { accessToken, refreshToken } = await this.authService.login(
       req.user,
     );
-
-    // Configure cookies to work with React Native app
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.setCookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProduction, // Only use secure in production
-      sameSite: 'none', // Allow cross-site cookies for mobile app
-    });
-    res.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProduction, // Only use secure in production
-      sameSite: 'none', // Allow cross-site cookies for mobile app
-    });
-
-    // Return both token and user info (with UUID)
-    return res.send({
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        emailVerifiedAt: user.emailVerifiedAt,
-      },
-    });
+    res.raw.setHeader('Set-Cookie', [
+      `refreshToken=${refreshToken}; HttpOnly; Path=/; SameSite=None; Secure`,
+      `accessToken=${accessToken}; HttpOnly; Path=/; SameSite=None; Secure`,
+    ]);
+    res.send({ accessToken, refreshToken });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -73,41 +53,35 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(
     @Req() req: FastifyRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
+    @Res() res: FastifyReply,
+  ): Promise<void> {
     const refreshToken = req.cookies['refreshToken'];
-    if (!refreshToken) {
-      throw new BadRequestException('Refresh token is missing');
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
     }
-
-    res.clearCookie('refreshToken');
-
-    return await this.authService.logout(refreshToken);
+    res.raw.setHeader('Set-Cookie', [
+      `refreshToken=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+      `accessToken=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+    ]);
+    res.status(200).send({ message: 'Logged out successfully' });
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refreshToken(
     @Req() req: FastifyRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
+    @Res() res: FastifyReply,
+  ): Promise<void> {
     const refreshToken = req.cookies['refreshToken'];
     if (!refreshToken) {
-      throw new BadRequestException('Refresh token is missing');
+      throw new UnauthorizedException('No refresh token provided');
     }
-
     const { accessToken } = await this.authService.refreshToken(refreshToken);
-
-    // Configure cookies to work with React Native app
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    res.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProduction, // Only use secure in production
-      sameSite: 'none', // Allow cross-site cookies for mobile app
-    });
-
-    return { accessToken };
+    res.raw.setHeader(
+      'Set-Cookie',
+      `accessToken=${accessToken}; HttpOnly; Path=/; SameSite=None; Secure`,
+    );
+    res.send({ accessToken });
   }
 
   @Post('password-reset')
@@ -139,34 +113,40 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(
     @Req() req: any,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
+    @Res() res: FastifyReply,
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        return res.status(401).send({ message: 'Authentication failed' });
-      }
-
-      const { accessToken, refreshToken } =
+      const { accessToken, refreshToken, user } =
         await this.authService.googleLogin(req);
-
-      res.setCookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
-      });
-
-      res.setCookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
-      });
-
-      return res.send({ accessToken });
+      res.raw.setHeader('Set-Cookie', [
+        `refreshToken=${refreshToken}; HttpOnly; Path=/; SameSite=None; Secure`,
+        `accessToken=${accessToken}; HttpOnly; Path=/; SameSite=None; Secure`,
+      ]);
+      res.redirect('/chat.html');
     } catch (error) {
-      return res.status(500).send({
-        message: 'Error during Google authentication',
-        error: error.message,
-      });
+      res.redirect('/login?error=true');
     }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Req() req: AuthFastifyRequest,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const isMatch = await bcrypt.compare(
+      changePasswordDto.oldPassword,
+      req.user.password,
+    );
+    if (!isMatch) {
+      throw new UnauthorizedException('Old password is incorrect.');
+    }
+
+    return await this.authService.changePassword(
+      req.user.id,
+      changePasswordDto.oldPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

@@ -24,8 +24,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: jwtSecret,
     });
   }
-
   async validate(payload: JwtAccessPayload): Promise<UserDocument> {
+    // The JWT payload.sub contains the MongoDB ObjectId as a string
     const user = await this.usersService.findOneById(payload.sub);
     if (!user) {
       throw new UnauthorizedException();

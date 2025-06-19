@@ -1,13 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsMongoId } from 'class-validator';
 
 export class GetMessagesDto {
   @IsNotEmpty()
   @IsString()
-  @IsUUID()
+  @IsMongoId()
   userId: string;
 
   @IsOptional()
   @IsString()
-  @IsUUID()
+  @IsMongoId()
   otherUserId?: string;
 }
