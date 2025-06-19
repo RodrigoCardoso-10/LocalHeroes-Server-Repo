@@ -40,4 +40,9 @@ export class UsersController {
   ): Promise<User> {
     return await this.usersService.updateUser(req.user.id, updateUserDto);
   }
+
+  @Get('by-email/:email')
+  async findByEmail(@Param('email') email: string): Promise<User> {
+    return await this.usersService.findOneByEmail(email);
+  }
 }
