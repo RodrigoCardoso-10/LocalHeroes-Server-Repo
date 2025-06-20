@@ -13,6 +13,7 @@ import mailerConfig from './config/mailer.config';
 import { TasksModule } from './tasks/tasks.module';
 import { SeedersModule } from './seeders/seeders.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AiSupportModule } from './ai-support/ai-support.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     TasksModule,
     SeedersModule,
     NotificationsModule,
+    AiSupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
